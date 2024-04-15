@@ -24,12 +24,22 @@ export default function ( program, action_context ) {
 
     subprogram
 	.command("publish")
-	.argument(new Argument('<type>', 'zome type').choices(["integrity", "coordinator"]))
-	.argument("<path>", "Path to zome (wasm) file")
+	.addArgument(
+	    new Argument('[type]', 'zome type')
+		.choices(["integrity", "coordinator"])
+	)
+	.argument("[path]", "Path to zome (wasm) file")
 	.description("Publish a zome (wasm)")
 	.action(
-	    action_context(async function ({ zomehub_csr }, zome_type, file_path ) {
+	    action_context(async function ({ log, zomehub_csr, project_config }, zome_type, file_path ) {
+		log.debug("[zomes publish] argumets:", zome_type, file_path );
 		const opts		= this.opts();
+		const parent_opts	= this.parent.opts();
+
+		if ( !zome_type || !file_path ) {
+		    zome_type		= project_config.zome_type;
+		    file_path		= project_config.target;
+		}
 
 		const abs_path		= path.resolve( file_path );
 		const bytes		= await fs.readFile( abs_path );

@@ -33,9 +33,23 @@ MOCHA_OPTS		= -n enable-source-maps
 
 test:
 	make -s test-unit
+	make -s test-integration
 
-test-unit:		lib/index.js Makefile
-	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit
+test-unit:
+	make -s test-unit-basic
+	make -s test-unit-no-holochain
+
+test-integration:
+	make -s test-integration-basic
+
+test-unit-basic:		lib/index.js Makefile
+	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit/test_basic.js
+
+test-unit-no-holochain:		lib/index.js Makefile
+	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit/test_no_holochain.js
+
+test-integration-basic:		lib/index.js Makefile
+	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_basic.js
 
 
 #
