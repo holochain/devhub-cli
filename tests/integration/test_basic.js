@@ -14,6 +14,7 @@ import {
     linearSuite,
     tmpfile,
     cmd,
+    hex,
 }					from '../utils.js';
 import {
     main,
@@ -25,8 +26,10 @@ const APPHUB_DNA_PATH			= path.join( __dirname, "../dnas/apphub.dna" );
 const DNAHUB_DNA_PATH			= path.join( __dirname, "../dnas/dnahub.dna" );
 const ZOMEHUB_DNA_PATH			= path.join( __dirname, "../dnas/zomehub.dna" );
 
+let installations;
 let app_port;
 let client;
+let alice_token_hex;
 let alice_client
 // let bobby_client;
 let alice_appstore_csr;
@@ -42,7 +45,7 @@ describe("DevHub CLI - integration", function () {
     before(async function () {
 	this.timeout( 60_000 );
 
-	await holochain.install([
+	installations			= await holochain.install([
 	    "alice",
 	    // "bobby",
 	], [
@@ -57,6 +60,7 @@ describe("DevHub CLI - integration", function () {
 	]);
 
 	app_port			= await holochain.ensureAppPort();
+	alice_token_hex			= hex( installations.alice.test.auth.token );
     });
 
     linearSuite("Basic", basic_tests );
@@ -68,18 +72,18 @@ describe("DevHub CLI - integration", function () {
 
 
 function basic_tests () {
-    it("should save a zome (wasm)", async function () {
-	const wasm			= await main(
-	    cmd(`-p ${app_port} -a test-alice zomes publish integrity ./tests/zomes/mere_memory.wasm`)
+    it("should save a zome (zome)", async function () {
+	const zome			= await main(
+	    cmd(`-p ${app_port} -a ${alice_token_hex} zomes publish integrity ./tests/zomes/mere_memory.wasm`)
 	);
-	log.normal("%s", json.debug(wasm) );
+	log.normal("%s", json.debug(zome) );
 
-	expect( wasm.wasm_type		).to.equal( "integrity" );
+	expect( zome.zome_type		).to.equal( "integrity" );
     });
 
     it("should list zomes", async function () {
 	const zomes			= await main(
-	    cmd(`-p ${app_port} -a test-alice zomes list`)
+	    cmd(`-p ${app_port} -a ${alice_token_hex} zomes list`)
 	);
 	log.normal("%s", json.debug(zomes) );
 
@@ -93,12 +97,12 @@ function basic_tests () {
 	});
 	log.normal("[tmp] project config path: %s", config_path );
 
-	const wasm			= await main(
-	    cmd(`-p ${app_port} -a test-alice -c ${config_path} zomes publish`)
+	const zome			= await main(
+	    cmd(`-p ${app_port} -a ${alice_token_hex} -c ${config_path} zomes publish`)
 	);
-	log.normal("%s", json.debug(wasm) );
+	log.normal("%s", json.debug(zome) );
 
-	expect( wasm.wasm_type		).to.equal( "coordinator" );
+	expect( zome.zome_type		).to.equal( "coordinator" );
     });
 
 
@@ -107,7 +111,7 @@ function basic_tests () {
 	it("should fail to use --quiet and --verbose", async function () {
 	    await expect_reject(async () => {
 		await main(
-		    cmd(`-q -v -p ${app_port} -a test-alice zomes list`)
+		    cmd(`-q -v -p ${app_port} -a ${alice_token_hex} zomes list`)
 		);
 	    }, "Don't use both --quite and --verbose");
 	});
@@ -115,7 +119,7 @@ function basic_tests () {
 	it("should fail to publish invalid zome type", async function () {
 	    await expect_reject(async () => {
 		await main(
-		    cmd(`-p ${app_port} -a test-alice zomes publish invalid some.wasm`)
+		    cmd(`-p ${app_port} -a ${alice_token_hex} zomes publish invalid some.wasm`)
 		);
 	    }, "invalid for argument 'type'");
 	});

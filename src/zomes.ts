@@ -16,7 +16,7 @@ export default function ( program, action_context ) {
 	.action(
 	    action_context(async function ({ zomehub_csr }) {
 		const opts		= this.opts();
-		const zomes		= await zomehub_csr.get_wasm_entries_for_agent();
+		const zomes		= await zomehub_csr.get_zome_entries_for_agent();
 
 		return zomes;
 	    })
@@ -28,8 +28,8 @@ export default function ( program, action_context ) {
 	    new Argument('[type]', 'zome type')
 		.choices(["integrity", "coordinator"])
 	)
-	.argument("[path]", "Path to zome (wasm) file")
-	.description("Publish a zome (wasm)")
+	.argument("[path]", "Path to zome (zome) file")
+	.description("Publish a zome (zome)")
 	.action(
 	    action_context(async function ({ log, zomehub_csr, project_config }, zome_type, file_path ) {
 		log.debug("[zomes publish] argumets:", zome_type, file_path );

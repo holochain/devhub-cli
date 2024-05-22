@@ -23,10 +23,39 @@ node_modules:		package-lock.json
 	touch $@
 build:			node_modules
 
+npm-reinstall-local:
+	npm uninstall $(NPM_PACKAGE); npm i --save $(LOCAL_PATH)
+npm-reinstall-public:
+	npm uninstall $(NPM_PACKAGE); npm i --save $(NPM_PACKAGE)
+npm-reinstall-dev-local:
+	npm uninstall $(NPM_PACKAGE); npm i --save-dev $(LOCAL_PATH)
+npm-reinstall-dev-public:
+	npm uninstall $(NPM_PACKAGE); npm i --save-dev $(NPM_PACKAGE)
+
+npm-use-app-interface-client-public:
+npm-use-app-interface-client-local:
+npm-use-app-interface-client-%:
+	NPM_PACKAGE=@spartan-hc/app-interface-client LOCAL_PATH=../app-interface-client-js make npm-reinstall-$*
+
+npm-use-backdrop-public:
+npm-use-backdrop-local:
+npm-use-backdrop-%:
+	NPM_PACKAGE=@spartan-hc/holochain-backdrop LOCAL_PATH=../node-backdrop make npm-reinstall-dev-$*
+
+npm-use-bundles-public:
+npm-use-bundles-local:
+npm-use-bundles-%:
+	NPM_PACKAGE=@spartan-hc/bundles LOCAL_PATH=../bundles-js make npm-reinstall-$*
+
 
 #
 # Testing
 #
+TEST_DNAS		= tests/dnas/zomehub.dna
+
+tests/dnas/zomehub.dna:		../devhub-dnas/dnas/zomehub.dna
+	cp $< $@
+
 DEBUG_LEVEL	       ?= warn
 TEST_ENV_VARS		= LOG_LEVEL=$(DEBUG_LEVEL)
 MOCHA_OPTS		= -n enable-source-maps
@@ -48,7 +77,7 @@ test-unit-basic:		lib/index.js Makefile
 test-unit-no-holochain:		lib/index.js Makefile
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit/test_no_holochain.js
 
-test-integration-basic:		lib/index.js Makefile
+test-integration-basic:		lib/index.js Makefile $(TEST_DNAS)
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_basic.js
 
 

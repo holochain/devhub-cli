@@ -19,7 +19,7 @@
     "url": "https://github.com/holochain/devhub-cli"
   },
   "devDependencies": {
-    "@spartan-hc/holochain-backdrop": "^4.0.0",
+    "@spartan-hc/holochain-backdrop": "^4.4.1",
     "@types/node": "^20.12.7",
     "chai": "^5.1.0",
     "mocha": "^10.4.0",
@@ -27,7 +27,8 @@
   },
   "dependencies": {
     "@holochain/zomehub-zomelets": "file:../devhub-dnas/dnas/zomehub/zomelets",
-    "@spartan-hc/app-interface-client": "^0.4.1",
+    "@spartan-hc/app-interface-client": "^0.7.1",
+    "@spartan-hc/bundles": "^0.2.6",
     "@whi/json": "^0.1.7",
     "@whi/weblogger": "^0.4.0",
     "chalk": "^5.3.0",

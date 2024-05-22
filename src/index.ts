@@ -26,6 +26,13 @@ function increaseTotal ( v, total ) {
     return total + 1;
 }
 
+function parseHex ( hex ) {
+    return Uint8Array.from(
+	hex.match(/.{1,2}/g)
+	    .map((byte) => parseInt(byte, 16))
+    );
+}
+
 
 //
 // Constants
@@ -89,7 +96,7 @@ export async function main ( argv ) {
 	.option("-v, --verbose", "increase logging verbosity", increaseTotal, 0 )
 	.option("-q, --quiet", "suppress all printing except for final result", false )
 	.option("-p, --app-port <port>", "set the app port for connecting to the Holochain Conductor", parseInt )
-	.option("-a, --app-name <name>", "set the installed app ID as the context for commands" )
+	.option("-a, --app-token <token>", "set the auth token used to setup the app context for commands", parseHex )
 	.option("-c, --config <config>", "" )
 	.option("-t, --timeout <timeout>", "set timeout for Holochain start-up (default 60 seconds)", parseInt )
 	.hook("preAction", async function (self) {
@@ -128,7 +135,7 @@ export async function main ( argv ) {
 		"logging": "fatal",
 	    });
 
-	    app_client			= await client.app( opts.appName );
+	    app_client			= await client.app( opts.appToken );
 
 	    ({
 		zomehub,

@@ -63,9 +63,15 @@ export function cmd ( args, verbosity = DEFAULT_VERBOSITY ) {
 }
 
 
+export function hex ( bytes ) {
+    return Buffer.from( bytes ).toString("hex");
+}
+
+
 export default {
     expect_reject,
     linearSuite,
     tmpfile,
     cmd,
+    hex,
 };
