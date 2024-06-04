@@ -10,6 +10,16 @@ lib/index.js:		src/*.ts Makefile
 	npx tsc -t es2022 -m es2022 --moduleResolution node --esModuleInterop	\
 		--strictNullChecks 						\
 		--outDir lib -d --sourceMap src/index.ts
+	chmod a+x $@
+
+build-watch:
+	@inotifywait -r -m -e modify		\
+		--includei '.*\.ts'		\
+			src/			\
+	| while read -r dir event file; do	\
+		echo -e "\x1b[37m$$event $$dir$$file\x1b[0m";\
+		make lib/index.js;		\
+	done
 
 
 #
@@ -68,17 +78,19 @@ test-unit:
 	make -s test-unit-basic
 	make -s test-unit-no-holochain
 
-test-integration:
-	make -s test-integration-basic
-
 test-unit-basic:		lib/index.js Makefile
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit/test_basic.js
-
 test-unit-no-holochain:		lib/index.js Makefile
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/unit/test_no_holochain.js
 
+test-integration:
+	make -s test-integration-basic
+	make -s test-integration-zome-project
+
 test-integration-basic:		lib/index.js Makefile $(TEST_DNAS)
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_basic.js
+test-integration-zome-project:	lib/index.js Makefile $(TEST_DNAS)
+	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_zome_project.js
 
 
 #

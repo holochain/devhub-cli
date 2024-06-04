@@ -22,18 +22,15 @@ import {
 
 
 const __dirname				= path.dirname( new URL(import.meta.url).pathname );
-const APPHUB_DNA_PATH			= path.join( __dirname, "../dnas/apphub.dna" );
-const DNAHUB_DNA_PATH			= path.join( __dirname, "../dnas/dnahub.dna" );
 const ZOMEHUB_DNA_PATH			= path.join( __dirname, "../dnas/zomehub.dna" );
 
 let installations;
 let app_port;
 let client;
+
 let alice_token_hex;
 let alice_client
-// let bobby_client;
 let alice_appstore_csr;
-// let bobby_appstore_csr;
 
 
 describe("DevHub CLI - integration", function () {
@@ -47,13 +44,10 @@ describe("DevHub CLI - integration", function () {
 
 	installations			= await holochain.install([
 	    "alice",
-	    // "bobby",
 	], [
 	    {
 		"app_name": "test",
 		"bundle": {
-		    // "apphub":		APPHUB_DNA_PATH,
-		    // "dnahub":		DNAHUB_DNA_PATH,
 		    "zomehub":		ZOMEHUB_DNA_PATH,
 		},
 	    },
@@ -72,47 +66,64 @@ describe("DevHub CLI - integration", function () {
 
 
 function basic_tests () {
-    it("should list zomes", async function () {
-	const zomes			= await main(
-	    cmd(`-p ${app_port} -a ${alice_token_hex} zomes list`)
-	);
-	log.normal("%s", json.debug(zomes) );
+    let config_path;
 
-	expect( zomes			).to.have.length( 0 );
-    });
-
-    it("should derive context from project config", async function () {
-	const config_path		= await tmpfile( "config.json", {
+    before(async function () {
+	config_path			= await tmpfile( "config.json", {
 	    app_port,
 	    "app_token":	alice_token_hex,
 	});
 	log.normal("[tmp] project config path: %s", config_path );
+    });
 
+    it("should add zome target", async function () {
+	const zome			= await main(
+	    cmd([
+		`-c`, config_path, `config`, `zomes`, `add`, `-y`,
+		`-T`, `integrity`,
+		`-n`, `Mere Memory`,
+		`-d`, `Simple byte storage`,
+		`-x`, `0.1.0`,
+		`-w`, `./tests/zomes/mere_memory.wasm`,
+		`mere_memory`,
+	    ])
+	);
+    });
+
+    it("should get devhub config", async function () {
+	const config			= await main(
+	    cmd(`-c ${config_path} config show`)
+	);
+	log.normal("Devhub config: %s", json.debug(config) );
+    });
+
+    it("should publish a zome target", async function () {
+	const version			= await main(
+	    cmd(`-c ${config_path} publish --new zome mere_memory`)
+	);
+	log.normal("Published version: %s", json.debug(version) );
+
+	expect( version.version		).to.equal( "0.1.0" );
+    });
+
+    it("should list zomes", async function () {
 	const zomes			= await main(
 	    cmd(`-c ${config_path} zomes list`)
 	);
-	log.normal("%s", json.debug(zomes) );
+	log.normal("Zomes: %s", json.debug(zomes) );
 
-	expect( zomes			).to.have.length( 0 );
+	expect( zomes			).to.have.length( 1 );
     });
 
 
     linearSuite("Errors", function () {
 
-	it("should fail to use --quiet and --verbose", async function () {
+	it("should fail to publish invalid zome type", async function () {
 	    await expect_reject(async () => {
 		await main(
-		    cmd(`-q -v -p ${app_port} -a ${alice_token_hex} zomes list`)
+		    cmd(`-c ${config_path} publish zome invalid`)
 		);
-	    }, "Don't use both --quite and --verbose");
-	});
-
-	it("should fail to call non-existent command", async function () {
-	    await expect_reject(async () => {
-		await main(
-		    cmd(`-p ${app_port} -a ${alice_token_hex} invalid command`)
-		);
-	    }, "too many arguments");
+	    }, "No zome target with ID 'invalid'");
 	});
 
     });

@@ -59,7 +59,16 @@ const DEFAULT_VERBOSITY			= DEFAULT_VERBOSITY_LEVEL > 0
       : "-q";
 
 export function cmd ( args, verbosity = DEFAULT_VERBOSITY ) {
-    return `node index.js ${verbosity} ${args}`.split(" ");
+    if ( typeof args === "string" ) {
+	args				= args
+	    .match(/(?:[^\s"]+|"[^"]*")+/g)
+	    .map( arg => arg.replace(/"/g, '') );
+    }
+
+    return [
+	"node", "index.js", verbosity,
+	...args
+    ];
 }
 
 
