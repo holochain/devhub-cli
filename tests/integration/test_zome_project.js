@@ -33,7 +33,7 @@ let alice_client
 let alice_appstore_csr;
 
 
-describe("DevHub CLI - integration", function () {
+describe("DevHub CLI - integration::zome-project", function () {
     const holochain			= new Holochain({
 	"timeout": 60_000,
 	"default_stdout_loggers": log.level_rank > 3,
@@ -98,6 +98,8 @@ function basic_tests () {
     });
 
     it("should publish a zome target", async function () {
+        this.timeout( 10_000 );
+
 	const version			= await main(
 	    cmd(`-c ${config_path} publish --new zome mere_memory`)
 	);

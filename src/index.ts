@@ -6,27 +6,19 @@ const log				= new Logger("devhub-cli", "fatal" );
 import fs				from 'fs/promises';
 import path				from 'path';
 
+import chalk				from 'chalk';
 import cloneDeep			from 'clone-deep';
 import json				from '@whi/json';
 import {
     Command,
+    Argument,
     Option,
 }					from 'commander';
 import {
     ActionHash,
 }					from '@spartan-hc/holo-hash';
-import {
-    AppInterfaceClient,
-}					from '@spartan-hc/app-interface-client';
-import {
-    ZomeHubCell,
-}					from '@holochain/zomehub-zomelets';
 
 import {
-    ConnectionContext,
-    DevhubConfig,
-    DevhubSettings,
-
     ActionContextFunction,
     ActionCallbackFunction,
     SubprogramInitFunction,
@@ -35,10 +27,15 @@ import {
     print,
     parseHex,
     readJsonFile,
+    writeJsonFile,
 }					from './utils.js';
 import config_subprogram_init		from './config.js';
 import publish_subprogram_init		from './publish.js';
+import install_subprogram_init		from './install.js';
 import zomes_subprogram_init		from './zomes.js';
+import {
+    Project,
+}                                       from './utils/project.js';
 
 
 //
@@ -52,6 +49,7 @@ function increaseTotal ( v, total ) {
 //
 // Constants
 //
+const CWD_DIR				= process.cwd();
 const __dirname				= path.dirname( new URL( import.meta.url ).pathname );
 const ROOT_DIR				= path.resolve( __dirname, ".." );
 const PACKAGE_DETAILS			= await readJsonFile(
@@ -76,95 +74,38 @@ export async function main ( argv ) {
     // Global 'verbosity' level for runtime
     let verbosity			= 0;
 
-    let client, app_client;
-    let zomehub, zomehub_csr;
-    let mere_memory_api;
-    let connection_ctx : ConnectionContext;
-    let devhub_config_path : string;
-    let devhub_config : DevhubConfig;
-    let devhub_settings : DevhubSettings	= {
-	"app_port":	undefined,
-	"app_token":	undefined,
-	"zomes":	{},
-    };
+    let project : Project;
     let output;
-
-    async function connect () {
-	const opts			= program.opts();
-
-	if ( !connection_ctx.app_port )
-	    throw new TypeError(`Missing app port`);
-
-	if ( !connection_ctx.app_token )
-	    throw new TypeError(`Missing app token`);
-
-	// Setup the clients that all subcommands would use
-	if ( !client ) {
-	    client			= new AppInterfaceClient( connection_ctx.app_port, {
-		"logging":	"fatal",
-		"conn_options": {
-		    "timeout":	opts.timeout,
-		},
-	    });
-	}
-
-	if ( !app_client ) {
-	    app_client			= await client.app( connection_ctx.app_token );
-	}
-
-	if ( !zomehub ) {
-	    ({
-		zomehub,
-	    }				= app_client.createInterface({
-		"zomehub":		ZomeHubCell,
-	    }));
-	}
-
-	if ( !zomehub_csr ) {
-	    zomehub_csr			= zomehub.zomes.zomehub_csr.functions;
-	}
-
-	if ( !mere_memory_api ) {
-	    mere_memory_api		= zomehub.zomes.mere_memory_api.functions;
-	}
-    }
 
     function action_context (
 	action_callback		: ActionCallbackFunction,
 	connected		: boolean = true,
     ) {
 	return async function ( ...args ) {
-	    if ( connected === true )
-		await connect();
+            if ( connected === true )
+                await project.connect();
 
 	    // Ensure action results are used as the program output
 	    output			= await action_callback.call( this, {
 		log,
-
-		connection_ctx,
-		devhub_config_path,
-		devhub_config,
-		devhub_settings,
-
-		client,
-		app_client,
-		zomehub,
-		zomehub_csr,
-		mere_memory_api,
+                project,
 	    }, ...args );
+
+            if ( project?.client )
+                await project.client.close();
 	};
     }
 
     async function auto_help () {
-	if ( client )
-	    await client.conn.open();
+	// if ( client )
+	//     await client.conn.open();
 	this.outputHelp();
     }
 
     function initialize_subcommand (
 	subprogram_init		: SubprogramInitFunction,
     ) {
-	subprogram_init({ program, action_context, auto_help, devhub_config });
+	subprogram_init({ program, action_context, auto_help });
     }
 
 
@@ -192,9 +133,7 @@ export async function main ( argv ) {
 	})
 	.option("-v, --verbose", "increase logging verbosity (default: \"fatal\")", increaseTotal, 0 )
 	.option("-q, --quiet", "suppress all printing except for final result", false )
-	.option("-p, --app-port <port>", "set the app port for connecting to the Holochain Conductor", parseInt )
-	.option("-a, --app-token <token>", "set the auth token used to setup the app context for commands", parseHex )
-	.option("-c, --config <config>", "path to project config file", "devhub.json" )
+	.option("-c, --cwd <path>", "path to project dir", CWD_DIR )
 	.addOption(
 	    (new Option(
 		"-t, --timeout <number>",
@@ -228,68 +167,12 @@ export async function main ( argv ) {
 		log.setLevel( 0 );
 	    }
 
-	    // Is there a project config?
-	    try {
-		devhub_config_path	= path.resolve( opts.config );
-		log.info("Using devhub config file path: %s", devhub_config_path );
-		devhub_config		= await readJsonFile( devhub_config_path );
-
-		log.trace("Devhub config: %s", json.debug(devhub_config) );
-
-		// Copy devhub config to devhub settings
-		Object.assign( devhub_settings, {
-		    ...cloneDeep( devhub_config ),
-		    "app_token":	parseHex( devhub_config.app_token ),
-		});
-	    } catch (err) {
-		if ( err.code !==  "ENOENT" )
-		    throw err;
-	    }
-
-	    // Override the devhub settings if connection opts are set
-	    if ( opts.appPort )
-		devhub_settings.app_port	= opts.appPort;
-	    if ( opts.appToken )
-		devhub_settings.app_token	= opts.appToken;
-
-	    // Are the connection details set?  This would only be undefined if there are no devhub
-	    // settings and no connection options.
-	    if ( devhub_settings.app_port && devhub_settings.app_token ) {
-		connection_ctx			= {
-		    "app_port":		devhub_settings.app_port,
-		    "app_token":	devhub_settings.app_token,
-		};
-	    }
-
-	    for ( let target_id in devhub_settings.zomes ) {
-		const zome_ref		= devhub_settings.zomes[ target_id ];
-
-		if ( typeof zome_ref === "string" ) {
-		    const zome_config	= await readJsonFile( zome_ref );
-
-		    // Update the relative target reference to be relative to the devhub.json location
-		    zome_config.target	= path.relative(
-			path.dirname(devhub_config_path),
-			// Combine zome ref path and target path
-			path.resolve(
-			    path.dirname(zome_ref),
-			    zome_config.target
-			)
-		    );
-
-		    devhub_settings.zomes[ target_id ] = zome_config;
-		}
-
-		const zome_config	= devhub_settings.zomes[ target_id ];
-
-		if ( zome_config.zome_package_id )
-		    zome_config.zome_package_id		= new ActionHash( zome_config.zome_package_id );
-
-		if ( zome_config.zome_package_version_id )
-		    zome_config.zome_package_version_id	= new ActionHash( zome_config.zome_package_version_id );
-	    }
-
-	    log.trace("Devhub settings: %s", json.debug(devhub_settings) );
+	    // Is there a project config?  Most commands won't work if it hasn't been initiated
+            project                     = await Project.create( opts.cwd );
+	    log.trace("Devhub settings: %s", json.debug({
+                "connection":   project.connection,
+                "config":       project.config,
+            }) );
 	})
 	// Control commander's output/error write behavior
 	.configureOutput({
@@ -309,22 +192,199 @@ export async function main ( argv ) {
 	})
 	// Prevent process exiting
 	.exitOverride()
-	// Force failure when unknown arguments are provided
-	.allowExcessArguments( false )
+	.allowExcessArguments( true )
+	.allowUnknownOption( true )
 	.action( auto_help );
+
+    program
+	.command("init")
+	.allowExcessArguments( true )
+	.allowUnknownOption( true )
+	.description("Initialize a devhub project")
+	.option("-f, --force", "Create config even if the file already exists", false )
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+	        const opts              = this.opts();
+
+		if ( project.config && opts.force !== true )
+		    throw new Error(`There is already a devhub config (${project.configFilepath})`);
+
+                log.normal("Writing devhub config to %s", project.configFilepath );
+                await project.init();
+	    }, false )
+        );
+
+    program
+	.command("whoami")
+	.description("Devhub cell agent pubkey")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+	        const opts              = this.opts();
+
+		if ( !project.connection )
+		    throw new Error(`No connection config`);
+
+                return String(project.app_client.agent_id);
+	    })
+        );
+
+    program
+	.command("status")
+	.description("Display the known contexts and settings")
+	.option("-d, --data", "Display in a data format", false )
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+	        const opts              = this.opts();
+
+		if ( !project.config )
+		    throw new Error(`Devhub has not been initiated`);
+
+                let whoami : any        = null;
+
+                try {
+                    await project.connect();
+                    whoami              = await project.zomehub_client.whoami();
+                    await project.client.close();
+                } catch (err) {
+                    whoami              = {
+                        "name":     err.name,
+                        "message":  err.message,
+                    };
+                }
+
+                if ( opts.data ) {
+                    return {
+                        whoami,
+                        project,
+                    };
+                }
+
+                // Display ideas:
+                //   - What stage of publishing each package is in
+                //   - Untracked WASM files (that are not yet assigned to a package)
+                //   - Details about currently installed dependencies (count, size, ...)
+                const zome_configs      = Object.entries( project.config.zomes );
+                return [
+                    `You are agent ${chalk.yellow(whoami.pubkey.latest)}`,
+                    `Project CWD: ${chalk.magenta(project.cwd)}`,
+                    ``,
+                    `Project assets`,
+                    ...(zome_configs.length
+                        ? [
+                            `  Zomes:`,
+                            ...Object.entries( project.config.zomes ).map( ([tid, zome_config]) => {
+                                return `    ${chalk.cyan(zome_config.anchor)}\n`
+                                    +  `      ${zome_config.name} - ${chalk.gray(zome_config.description)}`;
+                            }),
+                        ]
+                        : [`  No defined zomes`]
+                       ),
+                ].join("\n");
+	    }, false )
+        );
+
+    const conn_program                  = program
+	.command("connection")
+	.description("Manage connection to Conductor")
+	.action( auto_help );
+
+    conn_program
+	.command("status")
+	.description("Display connection status")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+                return {
+                    "state":            project.connectionState,
+                    "connection":       project.connection,
+                };
+            }, true )
+        );
+
+    conn_program
+	.command("update")
+	.description("Update devhub connection settings")
+	.addArgument(
+	    new Argument("<property>", "Config property")
+		.choices([
+		    "app_port",
+		    "app_token",
+		])
+	)
+	.argument("<value>", "Property new value")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, config_prop, value ) {
+		const opts		= this.opts();
+		const config_opts	= this.parent.parent.opts();
+
+		if ( !project.config )
+		    throw new Error(`Devhub config does not exist`);
+
+                const connection : any  = { ...project.connection };
+
+                // // Check if connection input is valid
+                // if ( defaults.app_port && !is_valid_port( defaults.app_port ) ) {
+                //     log.error("Invalid app port provided via options: %s", defaults.app_port );
+                //     delete defaults.app_port;
+                // }
+
+                // if ( defaults.app_token && !is_valid_token( defaults.app_token ) ) {
+                //     log.error("Invalid app token provided via options: %s", defaults.app_token );
+                //     delete defaults.app_token;
+                // }
+
+		switch ( config_prop ) {
+		    case "app_port":
+			connection.app_port		= parseInt( value );
+			break;
+		    case "app_token":
+			// TODO: check token type
+			connection.app_token		= value;
+			break;
+		    default:
+			throw new TypeError(`Unhandled config property '${config_prop}'`);
+			break;
+		}
+
+                await project.setConnection( connection, {
+                    "global":       config_opts.global,
+                });
+
+		return project.connection;
+	    }, false )
+	);
+
 
     initialize_subcommand( config_subprogram_init );
     initialize_subcommand( publish_subprogram_init );
+    initialize_subcommand( install_subprogram_init );
     initialize_subcommand( zomes_subprogram_init );
 
     await program.parseAsync( argv );
     // At this point all subcommand actions have completed
 
+    // console.log("Remaining args:", program.args );
+    // console.log("Remaining args:", program.opts() );
+
     try {
 	return output;
     } finally {
-	if ( client )
-	    await client.close();
+	// if ( client )
+	//     await client.close();
     }
 }
 
@@ -332,7 +392,9 @@ if ( typeof process?.mainModule?.filename !== "string" ) {
     try {
 	const output			= await main( process.argv );
 
-	if ( !["", undefined].includes(output) ) {
+        if ( typeof output === "string" )
+            console.log( output );
+	else if ( !["", undefined].includes(output) ) {
 	    if ( process.stdout.isTTY )
 		print( json.debug(output) );
 	    else if ( !print.quiet )
@@ -355,6 +417,7 @@ if ( typeof process?.mainModule?.filename !== "string" ) {
 //
 // Exports
 //
+export * as utils                       from './utils.js';
 export default {
     VERSION,
     main,

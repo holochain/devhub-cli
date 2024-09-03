@@ -1,7 +1,6 @@
 import { Logger }			from '@whi/weblogger';
 const log				= new Logger("test-basic", process.env.LOG_LEVEL );
 
-import path				from 'path';
 import { expect }			from 'chai';
 import json				from '@whi/json';
 
@@ -12,6 +11,7 @@ import {
 import {
     expect_reject,
     linearSuite,
+    tmpdir,
     cmd,
 }					from '../utils.js';
 import {
@@ -31,6 +31,19 @@ function basic_tests () {
 		cmd(`--help`)
 	    );
 	}, "outputHelp" );
+    });
+
+    it("should init devhub project", async function () {
+        const TMPDIR                    = await tmpdir();
+
+	await main(
+	    cmd(`-c ${TMPDIR} init`)
+	);
+
+	const status                    = await main(
+	    cmd(`-c ${TMPDIR} status`)
+	);
+        log.normal("Status: %s", json.debug(status) );
     });
 
     linearSuite("Errors", function () {
