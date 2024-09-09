@@ -28,11 +28,17 @@ import {
 import ZomeConfig			from './zome_config.js';
 
 
-const DEFAULT_USER_HOME_DIRNAME     = os.homedir();
-const DEFAULT_DEVHUB_HOME_DIRNAME   = `.devhub`;
+const DEFAULT_USER_HOME_DIRNAME     = process.env.HOME || os.homedir();
+const DEFAULT_DEVHUB_HOME_DIRNAME   = process.env.DEVHUB_HOME || `.devhub`;
+
 const DEFAULT_CONNECTION_FILEPATH   = `connection.json`;
 const DEFAULT_CONFIG_FILEPATH       = `devhub.json`;
 const DEFAULT_LOCK_FILEPATH         = `devhub-lock.json`;
+
+const DEFAULT_LOCKFILE              = {
+    "version":          1,
+    "zomes":            {},
+};
 
 
 export class Project {
@@ -40,6 +46,7 @@ export class Project {
     #connection         : Option<ConnectionContext>;
     #config_raw         : Option<any>;
     #config             : Option<DevhubSettings>;
+    #lock_raw           : Option<any>;
     #ready              : Promise<void>;
 
     #client             : any;
@@ -73,6 +80,7 @@ export class Project {
     get connection () { return this.#connection; }
     get config_raw () { return this.#config_raw; }
     get config () { return this.#config; }
+    get lock () { return this.#lock_raw; }
 
     // TODO: a single indicator is not enough because the connection and project states can change
     // independently.  Eg. CONNECTED + NO_CONFIG
@@ -127,6 +135,7 @@ export class Project {
         await common.writeJsonFile(
             this.configFilepath,
             {
+                // TODO: fields for project info
                 "zomes":    {},
                 // "dnas":     {},
                 // "happs":    {},
@@ -144,6 +153,7 @@ export class Project {
         await Promise.all([
             this.loadConnectionFile(),
             this.loadConfigFile(),
+            this.loadLockFile(),
         ]);
     }
 
@@ -169,13 +179,40 @@ export class Project {
         this.#config                = config;
     }
 
-    async addZome ( target_id, config_filepath ) {
+    async saveConfig () {
+        await common.writeJsonFile(
+            this.configFilepath,
+            this.config_raw,
+        );
+    }
+
+    async saveLock () {
+        await common.writeJsonFile(
+            this.lockFilepath,
+            this.#lock_raw,
+        );
+    }
+
+    async loadLockFile () {
+        try {
+            this.#lock_raw          = await common.readJsonFile( this.lockFilepath );
+        } catch (err) {
+            if ( err.code !== "ENOENT" )
+                throw err;
+            this.#lock_raw          = cloneDeep( DEFAULT_LOCKFILE );
+        }
+
+        return this.lock;
+    }
+
+    async addZome ( tid, config_filepath ) {
         if ( !this.config )
             throw new Error(`Devhub config not found`);
 
-        const config                = cloneDeep( this.config_raw );
+        if ( this.config_raw.zomes[ tid ] !== undefined )
+            throw new Error(`Target ID '${tid}' is already defined`);
 
-        config.zomes[ target_id ]   = path.relative(
+        this.config_raw.zomes[ tid ]    = path.relative(
             this.cwd,
             path.resolve(
                 this.cwd,
@@ -183,11 +220,10 @@ export class Project {
             ),
         );
 
-        await common.writeJsonFile(
-            this.configFilepath,
-            config,
-        );
+        await this.saveConfig();
         await this.loadConfigFile();
+
+        return this.config.zomes[ tid ];
     }
 
 
