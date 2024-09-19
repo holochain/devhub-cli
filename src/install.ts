@@ -66,7 +66,7 @@ export default function ({ program, action_context, auto_help }) {
 
                     const zome_pointer  = path.resolve(
                         zomes_dir,
-                        `${zome_package.anchor}-${version}.wasm`,
+                        `${zome_package.name}-${version}.wasm`,
                     );
                     log.debug("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_filepath );
                     // TODO: what if it already exists?
@@ -90,7 +90,7 @@ export default function ({ program, action_context, auto_help }) {
 
                     Object.assign( lockspot[ version ], {
                         "zome_type":    zome_package.zome_type,
-                        "hash":         zome_wasm.hash,
+                        "checksum":     zome_wasm.hash,
                         "devhub_source": {
                             "zome_package_id":              zome_package.$id,
                             "zome_package_version_id":      zome_version.$id,

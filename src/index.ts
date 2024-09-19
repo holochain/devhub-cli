@@ -133,7 +133,8 @@ export async function main ( argv ) {
 	})
 	.option("-v, --verbose", "increase logging verbosity (default: \"fatal\")", increaseTotal, 0 )
 	.option("-q, --quiet", "suppress all printing except for final result", false )
-	.option("-c, --cwd <path>", "path to project dir", CWD_DIR )
+	.option("--cwd <path>", "path to project dir", CWD_DIR )
+	.option("--user-homedir <path>", "path to project dir")
 	.addOption(
 	    (new Option(
 		"-t, --timeout <number>",
@@ -246,7 +247,7 @@ export async function main ( argv ) {
 	        const opts              = this.opts();
 
 		if ( !project.config )
-		    throw new Error(`Devhub has not been initiated`);
+                    return chalk.white(`Devhub has not been initiated`);
 
                 let whoami : any        = null;
 
@@ -282,8 +283,8 @@ export async function main ( argv ) {
                         ? [
                             `  Zomes:`,
                             ...Object.entries( project.config.zomes ).map( ([tid, zome_config]) => {
-                                return `    ${chalk.cyan(zome_config.anchor)}\n`
-                                    +  `      ${zome_config.name} - ${chalk.gray(zome_config.description)}`;
+                                return `    ${chalk.cyan(zome_config.name)}\n`
+                                    +  `      ${zome_config.title} - ${chalk.gray(zome_config.description)}`;
                             }),
                         ]
                         : [`  No defined zomes`]
@@ -295,6 +296,7 @@ export async function main ( argv ) {
     const conn_program                  = program
 	.command("connection")
 	.description("Manage connection to Conductor")
+        .option("-g, --global", "Define connection settings globally", false )
 	.action( auto_help );
 
     conn_program
@@ -305,11 +307,55 @@ export async function main ( argv ) {
 		log,
                 project,
 	    }) {
-                return {
-                    "state":            project.connectionState,
-                    "connection":       project.connection,
+                try {
+                    await project.connect();
+
+                    return {
+                        "state":            project.connectionState,
+                        "connection":       project.connection,
+                    };
+                } catch (err) {
+                    // console.error(err);
+
+                    return {
+                        "state":            project.connectionState,
+                        "connection":       project.connection,
+                    };
+                } finally {
+                    if ( project?.client )
+                        await project.client.close();
+                }
+            }, false )
+        );
+
+    conn_program
+	.command("set")
+	.description("Set devhub connection settings")
+	.argument("<port>", "Conductor app port", parseInt )
+	.argument("<token>", "Devhub auth token")
+	.option("-f, --force", "Create config even if the file already exists", false )
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, app_port, app_token ) {
+		const opts              = this.opts();
+		const conn_opts	        = this.parent.opts();
+
+		if ( project.connection && opts.force !== true )
+		    throw new Error(`Connection config is already set @ ${project.connectionFilepath}`);
+
+                const connection        = {
+                    app_port,
+                    app_token,
                 };
-            }, true )
+
+                await project.setConnection( connection, {
+                    "global":       conn_opts.global,
+                });
+
+		return project.connection;
+            }, false )
         );
 
     conn_program
@@ -329,7 +375,7 @@ export async function main ( argv ) {
                 project,
 	    }, config_prop, value ) {
 		const opts		= this.opts();
-		const config_opts	= this.parent.parent.opts();
+		const conn_opts	        = this.parent.opts();
 
 		if ( !project.config )
 		    throw new Error(`Devhub config does not exist`);
@@ -361,7 +407,7 @@ export async function main ( argv ) {
 		}
 
                 await project.setConnection( connection, {
-                    "global":       config_opts.global,
+                    "global":       conn_opts.global,
                 });
 
 		return project.connection;

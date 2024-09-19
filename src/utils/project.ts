@@ -5,9 +5,6 @@ import os				from 'os';
 import fs				from 'fs/promises';
 import path				from 'path';
 import cloneDeep			from 'clone-deep';
-import {
-    File,
-}					from 'fs-manager';
 
 import {
     ActionHash,
@@ -93,9 +90,11 @@ export class Project {
     get connectionState () {
         if ( this.zomehub_client )
             return "CONNECTED";
+        if ( this.client )
+            return "CONNECTION_FAILED";
         if ( this.connection )
             return "UNCONNECTED";
-        return "NO_CONNECTION";
+        return "NO_CONNECTION_INFO";
     }
 
     get homedir () : string {
@@ -135,6 +134,7 @@ export class Project {
         await common.writeJsonFile(
             this.configFilepath,
             {
+                "version": "1",
                 // TODO: fields for project info
                 "zomes":    {},
                 // "dnas":     {},
@@ -342,6 +342,8 @@ export class Project {
     }
 
     createClient () {
+        if ( !this.connection )
+            throw new Error("No connection settings");
 	this.#client                = new AppInterfaceClient( this.connection?.app_port, {
 	    "logging":	"fatal",
 	    "conn_options": {
@@ -351,11 +353,15 @@ export class Project {
     }
 
     async createAppClient () {
+        if ( !this.client )
+            throw new Error("Client has not been created yet");
         const token                 = common.parseHex( this.connection?.app_token );
 	this.#app_client            = await this.client.app( token );
     }
 
     createZomehubClient () {
+        if ( !this.app_client )
+            throw new Error("App client has not been created yet");
         const {
             zomehub,
         }                           = this.app_client.createInterface({
@@ -367,6 +373,8 @@ export class Project {
     }
 
     createMereMemoryClient () {
+        if ( !this.zomehub_client )
+            throw new Error("ZomeHub client has not been created yet");
         this.#mere_memory_client    = this.zomehub_zomelet.zomes.mere_memory_api.functions;
     }
 }

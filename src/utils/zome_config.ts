@@ -64,8 +64,8 @@ export class ZomeConfig {
     //         : null;
     // }
 
-    get anchor () { return this.config.anchor; }
     get name () { return this.config.name; }
+    get title () { return this.config.title; }
     get version () { return this.config.version; }
     get description () { return this.config.description; }
 
@@ -89,8 +89,8 @@ export class ZomeConfig {
             "source":               this.filepath,
             "type":                 "zome",
             // "creator":              this.creator,
-            "anchor":               this.anchor,
             "name":                 this.name,
+            "title":                this.title,
             "version":              this.version,
             "description":          this.description,
             "target":               this.target,

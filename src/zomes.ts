@@ -3,6 +3,7 @@ import fs				from 'fs/promises';
 import path				from 'path';
 
 import toml				from 'toml';
+import chalk				from 'chalk';
 import inquirer				from 'inquirer';
 import {
     Argument,
@@ -22,6 +23,8 @@ import {
 
     readJsonFile,
     writeJsonFile,
+
+    snakeToWords,
 }					from './utils.js';
 
 
@@ -46,24 +49,24 @@ const init : SubprogramInitFunction = async function (
             new Option(`-T, --zome-type <path>`, `zome type (default: "integrity")`)
                 .choices( ZOME_TYPES )
         )
-        .option(`-n, --package-name <string>`, `zome package name (default: "")` )
+        .option(`-i, --package-name <string>`, `zome package name (default: "")` )
+        .option(`-n, --package-title <string>`, `zome package title (default: "")` )
         .option(`-d, --package-description <string>`, `zome package description (default: "")` )
         .option(`-x, --package-version <string>`, `zome package version (default: "0.1.0")` )
         .option(`-m, --package-maintainer <hash>`, `zome package maintainer (default: "null")` )
         .option(`-l, --package-tags <string>`, `zome package tag (default: "[]")`, buildList )
         .option(`-y, --yes`, `use defaults for all prompts` )
         .option(`-f, --force`, `Create config even if the file already exists` )
-        .argument("<target-id>", "Target ID")
         .argument("[location]", "Zome config location")
         .action(
             action_context(async function ({
                 log,
                 project,
-            }, target_id, output_dir ) {
+            }, output_dir ) {
                 const opts              = this.opts();
 
                 const output_abs_path   = path.resolve(
-                    output_dir || project.cwd,
+                    output_dir || process.cwd(),
                     "zome.json"
                 );
 
@@ -96,11 +99,6 @@ const init : SubprogramInitFunction = async function (
                         throw err;
                 }
 
-                const basename          = path.basename( opts.outputFile ?? "" );
-                const default_name      = path.extname( basename ) === ""
-                    ? basename
-                    : basename.slice( 0, -path.extname( basename ).length );
-
                 const config            = {
                     "type":                "zome",
                     "version":          opts.packageVersion ?? (
@@ -109,11 +107,11 @@ const init : SubprogramInitFunction = async function (
                     "target":           opts.targetPath ?? (
                         opts.yes ? "" : undefined
                     ),
-                    "anchor":           target_id ?? (
-                        opts.yes ? default_name : undefined
-                    ),
                     "name":             opts.packageName ?? (
-                        opts.yes ? default_name : undefined
+                        opts.yes ? (cargo_settings.package?.name || "") : undefined
+                    ),
+                    "title":            opts.packageTitle ?? (
+                        opts.yes ? "" : undefined
                     ),
                     "description":      opts.packageDescription ?? (
                         opts.yes ? "" : undefined
@@ -145,14 +143,14 @@ const init : SubprogramInitFunction = async function (
                         "default":      "",
                     },
                     {
-                        "name":         "anchor",
-                        "message":      "Zome package anchor?",
+                        "name":         "name",
+                        "message":      "Zome package name?",
                         "default":      cargo_settings.package?.name || "",
                     },
                     {
-                        "name":         "name",
-                        "message":      "Zome package name?",
-                        "default":      "",
+                        "name":         "title",
+                        "message":      "Zome package title?",
+                        "default":      snakeToWords(cargo_settings.package?.name || ""),
                     },
                     {
                         "name":         "description",
@@ -192,6 +190,8 @@ const init : SubprogramInitFunction = async function (
                     output_abs_path,
                     config,
                 );
+
+                const target_id         = config.name;
 
                 await project.addZome( target_id, output_abs_path );
 
@@ -240,34 +240,52 @@ const init : SubprogramInitFunction = async function (
     versions_subprogram
 	.command("list")
 	.description("List my zome package versions")
-	.argument("<target-id>", "Target ID")
+	.argument("[target-id]", "Target ID")
 	.action(
 	    action_context(async function ({
                 project,
 	    }, target_id ) {
 		const opts		= this.opts();
 
-		if ( project.config?.zomes?.[ target_id ] === undefined )
-		    throw new Error(`No zome target named '${target_id}'`);
-
 		const zome_packages	= await project.zomehub_client.get_zome_packages_for_agent() as Record<string, any>;
-                const zome_package      = Object.values( zome_packages ).find( zome => zome.anchor === target_id );
 
-		if ( !zome_package )
-		    throw new Error(`Zome target '${target_id}' has not been published yet`);
+                let package_map         = {};
 
-		const versions		= await project.zomehub_client.get_zome_package_versions( zome_package.$id );
+                if ( target_id ) {
+		    if ( project.config?.zomes?.[ target_id ] === undefined )
+		        return chalk.red(`No zome target named '${target_id}'`);
 
-		return Object.fromEntries( await Promise.all(
-                    Object.entries( versions ).map(
-                        async ([v, zome_version]: any) => {
-                            const zome              = await project.zomehub_client.get_zome_entry( zome_version.zome_entry );
-                            zome_version.zome_entry = zome;
+                    const zome_package  = Object.values( zome_packages ).find( zome => zome.name === target_id );
 
-                            return [ v, zome_version ];
-                        }
-                    )
-                ));
+		    if ( !zome_package )
+		        return chalk.red(`Zome target '${target_id}' has not been published yet`);
+
+                    package_map[ zome_package.name ] = zome_package.$id;
+                }
+                else {
+                    for ( let zome_package of Object.values(zome_packages) ) {
+                        package_map[ zome_package.name ] = zome_package.$id;
+                    }
+                }
+
+                for ( let [name, $id] of Object.entries(package_map) ) {
+		    const versions      = await project.zomehub_client.get_zome_package_versions( $id );
+
+                    package_map[ name ] = Object.fromEntries( await Promise.all(
+                        Object.entries( versions ).map(
+                            async ([v, zome_version]: any) => {
+                                const zome  = await project.zomehub_client.get_zome_entry( zome_version.zome_entry );
+                                zome_version.zome_entry = zome;
+
+                                return [ v, zome_version ];
+                            }
+                        )
+                    ));
+                }
+
+                return target_id
+                    ? package_map[ target_id ]
+                    : package_map;
 	    })
 	);
 

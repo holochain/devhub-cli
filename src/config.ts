@@ -33,7 +33,6 @@ export default function ({ program, action_context, auto_help }) {
     const subprogram			= program
 	.command("config")
 	.description("Manage devhub config")
-        .option("-g, --global", "Define connection config globally", false )
 	.action( auto_help );
 
     subprogram

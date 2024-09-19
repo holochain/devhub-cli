@@ -33,8 +33,8 @@ export type ZomeTarget = {
     type			: string;
     version			: string;
     target			: string;
-    anchor			: string;
     name			: string;
+    title			: string;
     description			: string;
     zome_type			: string;
     maintainer			: any;

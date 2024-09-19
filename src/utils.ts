@@ -96,6 +96,16 @@ export function is_valid_token ( input ) {
 }
 
 
+export function snakeToWords( str ) {
+  return str
+      .split('_')       // Split the string by underscores
+      .map( word => {   // Capitalize first letter of each word
+          return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');       // Join the words with a space
+}
+
+
 export default {
     print,
     parseHex,
@@ -107,4 +117,6 @@ export default {
 
     is_valid_port,
     is_valid_token,
+
+    snakeToWords,
 };
