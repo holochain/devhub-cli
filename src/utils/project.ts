@@ -41,6 +41,7 @@ const DEFAULT_LOCKFILE              = {
 export class Project {
     #cwd                : string;
     #connection         : Option<ConnectionContext>;
+    #connection_src     : Option<String>;
     #config_raw         : Option<any>;
     #config             : Option<DevhubSettings>;
     #lock_raw           : Option<any>;
@@ -75,6 +76,7 @@ export class Project {
 
     get cwd () : string { return this.#cwd; }
     get connection () { return this.#connection; }
+    get connection_src () { return this.#connection_src; }
     get config_raw () { return this.#config_raw; }
     get config () { return this.#config; }
     get lock () { return this.#lock_raw; }
@@ -110,6 +112,10 @@ export class Project {
     }
     get lockFilepath () : string {
         return path.resolve( this.cwd, this.LOCK_FILEPATH );
+    }
+
+    isGlobalConnectionConfig () : boolean {
+        return this.connection_src === this.globalConnectionFilepath;
     }
 
     ready () {
@@ -281,6 +287,7 @@ export class Project {
         // Try local config first
         try {
             this.#connection        = await common.readJsonFile( this.connectionFilepath );
+            this.#connection_src    = this.connectionFilepath;
             return;
         } catch (err) {
             if ( err.code !== "ENOENT" )
@@ -291,6 +298,7 @@ export class Project {
         // Check global config
         try {
             this.#connection        = await common.readJsonFile( this.globalConnectionFilepath );
+            this.#connection_src    = this.globalConnectionFilepath;
         } catch (err) {
             if ( err.code !== "ENOENT" )
                 throw err;

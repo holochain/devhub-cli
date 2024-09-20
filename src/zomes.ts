@@ -66,7 +66,7 @@ const init : SubprogramInitFunction = async function (
                 const opts              = this.opts();
 
                 const output_abs_path   = path.resolve(
-                    output_dir || process.cwd(),
+                    output_dir || project.cwd,
                     "zome.json"
                 );
 

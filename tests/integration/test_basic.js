@@ -1,7 +1,6 @@
 import { Logger }			from '@whi/weblogger';
 const log				= new Logger("test-basic", process.env.LOG_LEVEL );
 
-import os				from 'os';
 import fs				from 'fs/promises';
 import path				from 'path';
 import crypto				from 'crypto';
@@ -16,7 +15,6 @@ import {
     expect_reject,
     linearSuite,
     tmpdir,
-    tmpfile,
     cmd,
     hex,
 }					from '../utils.js';
@@ -79,14 +77,16 @@ const TMPDIR                            = await tmpdir();
 
 function basic_tests () {
 
-    it("should execute demo script", async function () {
-        this.timeout( 10_000 );
-
+    before(async function () {
         // Create a fake wasm file
         await fs.writeFile(
             path.resolve( TMPDIR, "mere_memory.wasm" ),
             crypto.randomBytes( 10_000 ),
         );
+    });
+
+    it("should execute MVP publish/install cycle", async function () {
+        this.timeout( 10_000 );
 
 	await main(
 	    cmd(`--cwd ${TMPDIR} init`)
@@ -96,12 +96,12 @@ function basic_tests () {
 	    cmd([
 		`--cwd`, TMPDIR,
                 `zomes`, `init`, `-y`,
+		`-w`, `mere_memory.wasm`,
 		`-T`, `integrity`,
+		`-i`, `mere_memory`,
+		`-x`, `0.1.0`,
 		`-n`, `Mere Memory`,
 		`-d`, `Integrity rules for simple byte storage`,
-		`-x`, `0.1.0`,
-		`-w`, `mere_memory.wasm`,
-                `mere_memory`,
 	    ])
 	);
 
@@ -114,10 +114,7 @@ function basic_tests () {
 
         // TODO: ensure that connection information is only used in the tmpdir location
 	await main(
-	    cmd(`--cwd ${TMPDIR} connection update app_port ${app_port}`)
-	);
-	await main(
-	    cmd(`--cwd ${TMPDIR} connection update app_token ${alice_token_hex}`)
+	    cmd(`--cwd ${TMPDIR} connection set ${app_port} ${alice_token_hex}`)
 	);
 
         {
@@ -129,7 +126,14 @@ function basic_tests () {
 
         {
 	    const published             = await main(
-	        cmd(`--cwd ${TMPDIR} publish zome mere_memory`)
+	        cmd([
+		    `--cwd`, TMPDIR,
+                    `publish`,
+                    `--holochain-version`, `0.4.0-dev.20`,
+                    `--hdi-version`, `0.5.0-dev.12`,
+                    `--hdk-version`, `0.4.0-dev.14`,
+                    `zome`, `mere_memory`,
+                ])
 	    );
             log.normal("Published: %s", json.debug(published) );
         }

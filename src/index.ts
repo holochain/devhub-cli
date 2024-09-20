@@ -135,6 +135,11 @@ export async function main ( argv ) {
 	.option("-q, --quiet", "suppress all printing except for final result", false )
 	.option("--cwd <path>", "path to project dir", CWD_DIR )
 	.option("--user-homedir <path>", "path to project dir")
+        // TODO: make a global option to use a data output format.  When present, command failures
+        // should throw an error instead of just printing a red message.  It could also default to
+        // true when main is called programatically.
+        //
+        // .option("-d, --data", "Display in a data format", false )
 	.addOption(
 	    (new Option(
 		"-t, --timeout <number>",
@@ -342,8 +347,22 @@ export async function main ( argv ) {
 		const opts              = this.opts();
 		const conn_opts	        = this.parent.opts();
 
-		if ( project.connection && opts.force !== true )
-		    throw new Error(`Connection config is already set @ ${project.connectionFilepath}`);
+		if ( project.connection && opts.force !== true ) {
+                    // Prevent writing to the global config if...
+                    if ( conn_opts.global ) {
+                        // ...it already exists
+                        if ( project.isGlobalConnectionConfig() ) {
+		            throw new Error(`Cannot overwrite existing global connection config; use --force to override this error`);
+                        }
+                        // ...there is a local config defined
+                        else {
+		            throw new Error(`Cannot write to global connection config while a local connection config exists; use --force to override this error`);
+                        }
+                    }
+                    // Prevent writing to the local config if it already exists
+                    else if ( !project.isGlobalConnectionConfig() )
+		        throw new Error(`Connection config is already set @ ${project.connectionFilepath}`);
+                }
 
                 const connection        = {
                     app_port,

@@ -61,7 +61,7 @@ npm-use-bundles-%:
 #
 TEST_DNAS		= tests/dnas/zomehub.dna
 
-tests/dnas/zomehub.dna:		../devhub-dnas/dnas/zomehub.dna
+tests/dnas/zomehub.dna:		../devhub-dnas-feature-cli-support/dnas/zomehub.dna
 	cp $< $@
 
 DEBUG_LEVEL	       ?= warn

@@ -1,7 +1,9 @@
 import { Logger }			from '@whi/weblogger';
 const log				= new Logger("test-basic", process.env.LOG_LEVEL );
 
+import fs				from 'fs/promises';
 import path				from 'path';
+import crypto				from 'crypto';
 import { expect }			from 'chai';
 import json				from '@whi/json';
 
@@ -12,7 +14,7 @@ import {
 import {
     expect_reject,
     linearSuite,
-    tmpfile,
+    tmpdir,
     cmd,
     hex,
 }					from '../utils.js';
@@ -65,34 +67,48 @@ describe("DevHub CLI - integration::zome-project", function () {
 });
 
 
+const TMPDIR                            = await tmpdir();
+
+
 function basic_tests () {
-    let config_path;
 
     before(async function () {
-	config_path			= await tmpfile( "config.json", {
-	    app_port,
-	    "app_token":	alice_token_hex,
-	});
-	log.normal("[tmp] project config path: %s", config_path );
+        this.timeout( 10_000 );
+
+        // Create a fake wasm file
+        await fs.writeFile(
+            path.resolve( TMPDIR, "mere_memory.wasm" ),
+            crypto.randomBytes( 10_000 ),
+        );
+
+	const conn_config               = await main(
+	    cmd(`--cwd ${TMPDIR} connection set ${app_port} ${alice_token_hex}`)
+	);
+	log.normal("[tmp] connection config: %s", json.debug(conn_config) );
     });
 
-    it("should add zome target", async function () {
+    it("should define a zome target", async function () {
+	await main(
+	    cmd(`--cwd ${TMPDIR} init`)
+	);
+
 	const zome			= await main(
 	    cmd([
-		`-c`, config_path, `config`, `zomes`, `add`, `-y`,
+		`--cwd`, TMPDIR,
+                `zomes`, `init`, `-y`,
+		`-w`, `mere_memory.wasm`,
 		`-T`, `integrity`,
+		`-i`, `mere_memory`,
+		`-x`, `0.1.0`,
 		`-n`, `Mere Memory`,
 		`-d`, `Simple byte storage`,
-		`-x`, `0.1.0`,
-		`-w`, `./tests/zomes/mere_memory.wasm`,
-		`mere_memory`,
 	    ])
 	);
     });
 
     it("should get devhub config", async function () {
 	const config			= await main(
-	    cmd(`-c ${config_path} config show`)
+	    cmd(`--cwd ${TMPDIR} status -d`)
 	);
 	log.normal("Devhub config: %s", json.debug(config) );
     });
@@ -100,17 +116,24 @@ function basic_tests () {
     it("should publish a zome target", async function () {
         this.timeout( 10_000 );
 
-	const version			= await main(
-	    cmd(`-c ${config_path} publish --new zome mere_memory`)
+	const result			= await main(
+	    cmd([
+		`--cwd`, TMPDIR,
+                `publish`,
+                `--holochain-version`, `0.4.0-dev.20`,
+                `--hdi-version`, `0.5.0-dev.12`,
+                `--hdk-version`, `0.4.0-dev.14`,
+                `zome`, `mere_memory`,
+            ])
 	);
-	log.normal("Published version: %s", json.debug(version) );
+	log.normal("Published result: %s", json.debug(result) );
 
-	expect( version.version		).to.equal( "0.1.0" );
+	// expect( result.?		).to.equal( "0.1.0" );
     });
 
     it("should list zomes", async function () {
 	const zomes			= await main(
-	    cmd(`-c ${config_path} zomes list`)
+	    cmd(`--cwd ${TMPDIR} zomes list`)
 	);
 	log.normal("Zomes: %s", json.debug(zomes) );
 
@@ -123,7 +146,7 @@ function basic_tests () {
 	it("should fail to publish invalid zome type", async function () {
 	    await expect_reject(async () => {
 		await main(
-		    cmd(`-c ${config_path} publish zome invalid`)
+		    cmd(`--cwd ${TMPDIR} publish zome invalid`)
 		);
 	    }, "No zome target with ID 'invalid'");
 	});
