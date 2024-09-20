@@ -15,7 +15,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Matthew Brisebois <matthew@webheroes.ca>",
+  "author": "Matthew Brisebois <matthew.brisebois@holo.host>",
   "license": "ISC",
   "repository": {
     "type": "git",
