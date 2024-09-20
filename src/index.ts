@@ -280,7 +280,7 @@ export async function main ( argv ) {
                 //   - Details about currently installed dependencies (count, size, ...)
                 const zome_configs      = Object.entries( project.config.zomes );
                 return [
-                    `You are agent ${chalk.yellow(whoami.pubkey.latest)}`,
+                    `You are agent ${chalk.yellow(whoami?.pubkey?.latest)}`,
                     `Project CWD: ${chalk.magenta(project.cwd)}`,
                     ``,
                     `Project assets`,

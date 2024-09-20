@@ -107,7 +107,7 @@ function basic_tests () {
 
         {
 	    const status                = await main(
-	        cmd(`--cwd ${TMPDIR} status`)
+	        cmd(`--cwd ${TMPDIR} status -d`)
 	    );
             log.normal("Status: %s", json.debug(status) );
         }
@@ -119,7 +119,7 @@ function basic_tests () {
 
         {
 	    const status                = await main(
-	        cmd(`--cwd ${TMPDIR} status`)
+	        cmd(`--cwd ${TMPDIR} status -d`)
 	    );
             log.normal("Status: %s", json.debug(status) );
         }
