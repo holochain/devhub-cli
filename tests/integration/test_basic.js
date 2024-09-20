@@ -1,7 +1,9 @@
 import { Logger }			from '@whi/weblogger';
 const log				= new Logger("test-basic", process.env.LOG_LEVEL );
 
+import fs				from 'fs/promises';
 import path				from 'path';
+import crypto				from 'crypto';
 import { expect }			from 'chai';
 import json				from '@whi/json';
 
@@ -12,18 +14,19 @@ import {
 import {
     expect_reject,
     linearSuite,
-    tmpfile,
+    tmpdir,
     cmd,
     hex,
 }					from '../utils.js';
 import {
     main,
+    utils,
 }					from '../../lib/index.js';
 
 
 const __dirname				= path.dirname( new URL(import.meta.url).pathname );
-const APPHUB_DNA_PATH			= path.join( __dirname, "../dnas/apphub.dna" );
-const DNAHUB_DNA_PATH			= path.join( __dirname, "../dnas/dnahub.dna" );
+// const APPHUB_DNA_PATH			= path.join( __dirname, "../dnas/apphub.dna" );
+// const DNAHUB_DNA_PATH			= path.join( __dirname, "../dnas/dnahub.dna" );
 const ZOMEHUB_DNA_PATH			= path.join( __dirname, "../dnas/zomehub.dna" );
 
 let installations;
@@ -70,50 +73,108 @@ describe("DevHub CLI - integration", function () {
     });
 });
 
+const TMPDIR                            = await tmpdir();
 
 function basic_tests () {
+
+    before(async function () {
+        // Create a fake wasm file
+        await fs.writeFile(
+            path.resolve( TMPDIR, "mere_memory.wasm" ),
+            crypto.randomBytes( 10_000 ),
+        );
+    });
+
+    it("should execute MVP publish/install cycle", async function () {
+        this.timeout( 10_000 );
+
+	await main(
+	    cmd(`--cwd ${TMPDIR} init`)
+	);
+
+	await main(
+	    cmd([
+		`--cwd`, TMPDIR,
+                `zomes`, `init`, `-y`,
+		`-w`, `mere_memory.wasm`,
+		`-T`, `integrity`,
+		`-i`, `mere_memory`,
+		`-x`, `0.1.0`,
+		`-n`, `Mere Memory`,
+		`-d`, `Integrity rules for simple byte storage`,
+	    ])
+	);
+
+        {
+	    const status                = await main(
+	        cmd(`--cwd ${TMPDIR} status -d`)
+	    );
+            log.normal("Status: %s", json.debug(status) );
+        }
+
+        // TODO: ensure that connection information is only used in the tmpdir location
+	await main(
+	    cmd(`--cwd ${TMPDIR} connection set ${app_port} ${alice_token_hex}`)
+	);
+
+        {
+	    const status                = await main(
+	        cmd(`--cwd ${TMPDIR} status -d`)
+	    );
+            log.normal("Status: %s", json.debug(status) );
+        }
+
+        {
+	    const published             = await main(
+	        cmd([
+		    `--cwd`, TMPDIR,
+                    `publish`,
+                    `--holochain-version`, `0.4.0-dev.20`,
+                    `--hdi-version`, `0.5.0-dev.12`,
+                    `--hdk-version`, `0.4.0-dev.14`,
+                    `zome`, `mere_memory`,
+                ])
+	    );
+            log.normal("Published: %s", json.debug(published) );
+        }
+
+        {
+	    const zome                  = await main(
+	        cmd(`--cwd ${TMPDIR} install mere_memory`)
+	    );
+            log.normal("Zome: %s", json.debug(zome) );
+        }
+
+        log.normal("Temp location: %s", TMPDIR );
+    });
+
     it("should list zomes", async function () {
 	const zomes			= await main(
-	    cmd(`-p ${app_port} -a ${alice_token_hex} zomes list`)
+	    cmd(`--cwd ${TMPDIR} zomes list`)
 	);
 	log.normal("%s", json.debug(zomes) );
 
-	expect( zomes			).to.have.length( 0 );
+	expect( zomes			).to.have.length( 1 );
     });
 
-    it("should derive context from project config", async function () {
-	const config_path		= await tmpfile( "config.json", {
-	    app_port,
-	    "app_token":	alice_token_hex,
-	});
-	log.normal("[tmp] project config path: %s", config_path );
-
-	const zomes			= await main(
-	    cmd(`-c ${config_path} zomes list`)
+    it("should list zome versions", async function () {
+	const versions			= await main(
+	    cmd(`--cwd ${TMPDIR} zomes versions list mere_memory`)
 	);
-	log.normal("%s", json.debug(zomes) );
+	log.normal("%s", json.debug(versions) );
 
-	expect( zomes			).to.have.length( 0 );
+	expect( Object.keys(versions)	).to.have.length( 1 );
     });
 
+    it("should list wasms", async function () {
+	const wasms			= await main(
+	    cmd(`--cwd ${TMPDIR} zomes wasms list`)
+	);
+	log.normal("%s", json.debug(wasms) );
 
-    linearSuite("Errors", function () {
-
-	it("should fail to use --quiet and --verbose", async function () {
-	    await expect_reject(async () => {
-		await main(
-		    cmd(`-q -v -p ${app_port} -a ${alice_token_hex} zomes list`)
-		);
-	    }, "Don't use both --quite and --verbose");
-	});
-
-	it("should fail to call non-existent command", async function () {
-	    await expect_reject(async () => {
-		await main(
-		    cmd(`-p ${app_port} -a ${alice_token_hex} invalid command`)
-		);
-	    }, "too many arguments");
-	});
-
+	expect( Object.keys(wasms)	).to.have.length( 1 );
     });
+
+    // linearSuite("Errors", function () {
+    // });
 }

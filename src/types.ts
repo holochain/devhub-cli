@@ -9,6 +9,12 @@ import {
     AppClient,
 }					from '@spartan-hc/app-interface-client';
 
+import type {
+    Project,
+}                                       from './utils/project.js';
+
+
+export type Option<T> = T | null;
 
 export type ConnectionContext = {
     app_port		: number;
@@ -28,6 +34,7 @@ export type ZomeTarget = {
     version			: string;
     target			: string;
     name			: string;
+    title			: string;
     description			: string;
     zome_type			: string;
     maintainer			: any;
@@ -65,6 +72,8 @@ export type ActionContextFunction = (
 
 export type ActionCallbackInput = {
     log				: any;
+
+    project		        : Project;
 
     connection_ctx		: ConnectionContext;
     devhub_config_path		: string;

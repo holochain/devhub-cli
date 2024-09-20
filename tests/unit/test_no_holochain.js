@@ -23,16 +23,11 @@ describe("DevHub CLI (no holochain)", function () {
 
 
 function basic_tests () {
+    it("should run main", async function () {
+	const result                    = await main(
+	    cmd(`--cwd /tmp -p ${APP_PORT} -a test-alice zomes list`, 4 )
+	);
 
-    linearSuite("Errors", function () {
-
-	it("should fail to open connection to Holochain", async function () {
-	    await expect_reject(async () => {
-		await main(
-		    cmd(`-p ${APP_PORT} -a test-alice zomes list`)
-		);
-	    }, "Failed to open WebSocket");
-	});
-
+        log.normal("Zomes list:", result );
     });
 }

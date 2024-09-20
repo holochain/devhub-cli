@@ -34,9 +34,14 @@ export function linearSuite ( name, setup_fn, args_fn ) {
 }
 
 
-const TMPDIR				= await fs.mkdtemp(
-    path.join( os.tmpdir(), "devhub-cli-" )
-);
+export async function tmpdir () {
+    return await fs.mkdtemp(
+        path.join( os.tmpdir(), "devhub-cli-" )
+    );
+}
+
+
+const TMPDIR				= await tmpdir();
 export async function tmpfile ( name, data ) {
     const file_path			= path.resolve( TMPDIR, name );
 
@@ -80,6 +85,7 @@ export function hex ( bytes ) {
 export default {
     expect_reject,
     linearSuite,
+    tmpdir,
     tmpfile,
     cmd,
     hex,

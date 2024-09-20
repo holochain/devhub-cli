@@ -4,7 +4,7 @@
 #
 # Building
 #
-lib/index.js:		src/*.ts Makefile node_modules
+lib/index.js:		src/*.ts src/*/*.ts Makefile node_modules
 	rm -f lib/*.js
 	npx tsc -t es2022 -m es2022 --moduleResolution node --esModuleInterop	\
 		--strictNullChecks 						\
@@ -61,12 +61,12 @@ npm-use-bundles-%:
 #
 TEST_DNAS		= tests/dnas/zomehub.dna
 
-tests/dnas/zomehub.dna:		../devhub-dnas/dnas/zomehub.dna
+tests/dnas/zomehub.dna:		../devhub-dnas-feature-cli-support/dnas/zomehub.dna
 	cp $< $@
 
 DEBUG_LEVEL	       ?= warn
 TEST_ENV_VARS		= LOG_LEVEL=$(DEBUG_LEVEL)
-MOCHA_OPTS		= -n enable-source-maps
+MOCHA_OPTS		= -n enable-source-maps -t 5000
 
 test:
 	make -s test-unit
