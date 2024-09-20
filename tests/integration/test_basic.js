@@ -89,12 +89,12 @@ function basic_tests () {
         );
 
 	await main(
-	    cmd(`-c ${TMPDIR} init`)
+	    cmd(`--cwd ${TMPDIR} init`)
 	);
 
 	await main(
 	    cmd([
-		`-c`, TMPDIR,
+		`--cwd`, TMPDIR,
                 `zomes`, `init`, `-y`,
 		`-T`, `integrity`,
 		`-n`, `Mere Memory`,
@@ -107,36 +107,36 @@ function basic_tests () {
 
         {
 	    const status                = await main(
-	        cmd(`-c ${TMPDIR} status`)
+	        cmd(`--cwd ${TMPDIR} status`)
 	    );
             log.normal("Status: %s", json.debug(status) );
         }
 
         // TODO: ensure that connection information is only used in the tmpdir location
 	await main(
-	    cmd(`-c ${TMPDIR} connection update app_port ${app_port}`)
+	    cmd(`--cwd ${TMPDIR} connection update app_port ${app_port}`)
 	);
 	await main(
-	    cmd(`-c ${TMPDIR} connection update app_token ${alice_token_hex}`)
+	    cmd(`--cwd ${TMPDIR} connection update app_token ${alice_token_hex}`)
 	);
 
         {
 	    const status                = await main(
-	        cmd(`-c ${TMPDIR} status`)
+	        cmd(`--cwd ${TMPDIR} status`)
 	    );
             log.normal("Status: %s", json.debug(status) );
         }
 
         {
 	    const published             = await main(
-	        cmd(`-c ${TMPDIR} publish zome mere_memory`)
+	        cmd(`--cwd ${TMPDIR} publish zome mere_memory`)
 	    );
             log.normal("Published: %s", json.debug(published) );
         }
 
         {
 	    const zome                  = await main(
-	        cmd(`-c ${TMPDIR} install mere_memory`)
+	        cmd(`--cwd ${TMPDIR} install mere_memory`)
 	    );
             log.normal("Zome: %s", json.debug(zome) );
         }
@@ -146,7 +146,7 @@ function basic_tests () {
 
     it("should list zomes", async function () {
 	const zomes			= await main(
-	    cmd(`-c ${TMPDIR} zomes list`)
+	    cmd(`--cwd ${TMPDIR} zomes list`)
 	);
 	log.normal("%s", json.debug(zomes) );
 
@@ -155,7 +155,7 @@ function basic_tests () {
 
     it("should list zome versions", async function () {
 	const versions			= await main(
-	    cmd(`-c ${TMPDIR} zomes versions list mere_memory`)
+	    cmd(`--cwd ${TMPDIR} zomes versions list mere_memory`)
 	);
 	log.normal("%s", json.debug(versions) );
 
@@ -164,7 +164,7 @@ function basic_tests () {
 
     it("should list wasms", async function () {
 	const wasms			= await main(
-	    cmd(`-c ${TMPDIR} zomes wasms list`)
+	    cmd(`--cwd ${TMPDIR} zomes wasms list`)
 	);
 	log.normal("%s", json.debug(wasms) );
 

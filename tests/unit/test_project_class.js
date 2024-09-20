@@ -33,26 +33,26 @@ function basic_tests () {
         log.normal("Project %s", json.debug(project) );
         expect( project.cwd             ).to.equal( TMPDIR, PROJECT_OPTS );
         expect( project.state           ).to.equal( "NO_CONFIG" );
-        expect( project.connectionState ).to.equal( "NO_CONNECTION" );
+        expect( project.connectionState ).to.equal( "NO_CONNECTION_INFO" );
     });
 
     it("should init project", async function () {
         const project                   = new Project( TMPDIR, PROJECT_OPTS );
         await project.load();
         expect( project.state           ).to.equal( "NO_CONFIG" );
-        expect( project.connectionState ).to.equal( "NO_CONNECTION" );
+        expect( project.connectionState ).to.equal( "NO_CONNECTION_INFO" );
 
         await project.init();
 
         expect( project.state           ).to.equal( "CONFIGURED" );
-        expect( project.connectionState ).to.equal( "NO_CONNECTION" );
+        expect( project.connectionState ).to.equal( "NO_CONNECTION_INFO" );
     });
 
     it("should set connection", async function () {
         const project                   = new Project( TMPDIR, PROJECT_OPTS );
         await project.load();
         expect( project.state           ).to.equal( "CONFIGURED" );
-        expect( project.connectionState ).to.equal( "NO_CONNECTION" );
+        expect( project.connectionState ).to.equal( "NO_CONNECTION_INFO" );
 
         await project.setConnection({
             "app_port":     1234,

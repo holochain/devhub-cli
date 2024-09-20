@@ -46,7 +46,7 @@ const init : SubprogramInitFunction = async function (
         .description("Create zome config")
         .option(`-w, --target-path <path>`, `path to the zome target (default: "")` )
         .addOption(
-            new Option(`-T, --zome-type <path>`, `zome type (default: "integrity")`)
+            new Option(`-T, --zome-type <type>`, `zome type (default: "integrity")`)
                 .choices( ZOME_TYPES )
         )
         .option(`-i, --package-name <string>`, `zome package name (default: "")` )
@@ -56,7 +56,7 @@ const init : SubprogramInitFunction = async function (
         .option(`-m, --package-maintainer <hash>`, `zome package maintainer (default: "null")` )
         .option(`-l, --package-tags <string>`, `zome package tag (default: "[]")`, buildList )
         .option(`-y, --yes`, `use defaults for all prompts` )
-        .option(`-f, --force`, `Create config even if the file already exists` )
+        .option(`-f, --force`, `create config even if the file already exists` )
         .argument("[location]", "Zome config location")
         .action(
             action_context(async function ({
