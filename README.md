@@ -1,3 +1,4 @@
+[![](https://img.shields.io/npm/v/@holochain/devhub-cli/latest?style=flat-square)](http://npmjs.com/package/@holochain/devhub-cli)
 
 # DevHub CLI
 A CLI for managing assets and packages on DevHub.

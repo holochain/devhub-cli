@@ -25,9 +25,9 @@ import {
 }					from './types.js';
 import {
     print,
-    parseHex,
     readJsonFile,
     writeJsonFile,
+    validate_token,
 }					from './utils.js';
 import config_subprogram_init		from './config.js';
 import publish_subprogram_init		from './publish.js';
@@ -82,8 +82,14 @@ export async function main ( argv ) {
 	connected		: boolean = true,
     ) {
 	return async function ( ...args ) {
-            if ( connected === true )
-                await project.connect();
+            if ( connected === true ) {
+                try {
+                    await project.connect();
+                } catch (err) {
+                    output              = chalk.red(err.message);
+                    return;
+                }
+            }
 
 	    // Ensure action results are used as the program output
 	    output			= await action_callback.call( this, {
@@ -261,10 +267,7 @@ export async function main ( argv ) {
                     whoami              = await project.zomehub_client.whoami();
                     await project.client.close();
                 } catch (err) {
-                    whoami              = {
-                        "name":     err.name,
-                        "message":  err.message,
-                    };
+                    whoami              = err;
                 }
 
                 if ( opts.data ) {
@@ -280,15 +283,24 @@ export async function main ( argv ) {
                 //   - Details about currently installed dependencies (count, size, ...)
                 const zome_configs      = Object.entries( project.config.zomes );
                 return [
-                    `You are agent ${chalk.yellow(whoami?.pubkey?.latest)}`,
                     `Project CWD: ${chalk.magenta(project.cwd)}`,
+                    ``,
+                    `You are`,
+                    whoami instanceof Error
+                        ? (
+                            project.connectionState === "CONNECTED"
+                                ? `  Cell Agent:   ${chalk.red("Client agent needs capabilities granted")}`
+                                : `  Cell Agent:   ${chalk.red("Connection settings failed. See 'devhub connection status' for more info")}`
+                        )
+                        : `  Cell Agent:   ${chalk.yellow(whoami?.pubkey?.latest)}`,
+                    `  Client Agent: ${chalk.yellow(project.client_agent)}`,
                     ``,
                     `Project assets`,
                     ...(zome_configs.length
                         ? [
                             `  Zomes:`,
                             ...Object.entries( project.config.zomes ).map( ([tid, zome_config]) => {
-                                return `    ${chalk.cyan(zome_config.name)}\n`
+                                return `    ${chalk.white(tid)} - ${chalk.cyan(zome_config.name)}\n`
                                     +  `      ${zome_config.title} - ${chalk.gray(zome_config.description)}`;
                             }),
                         ]
@@ -318,13 +330,16 @@ export async function main ( argv ) {
                     return {
                         "state":            project.connectionState,
                         "connection":       project.connection,
+                        "client_agent":     project.client_agent,
                     };
                 } catch (err) {
                     // console.error(err);
 
                     return {
                         "state":            project.connectionState,
+                        "error":            err.message,
                         "connection":       project.connection,
+                        "client_agent":     project.client_agent,
                     };
                 } finally {
                     if ( project?.client )
@@ -337,7 +352,7 @@ export async function main ( argv ) {
 	.command("set")
 	.description("Set devhub connection settings")
 	.argument("<port>", "Conductor app port", parseInt )
-	.argument("<token>", "Devhub auth token")
+	.argument("<token>", "Devhub auth token (hex or base64)")
 	.option("-f, --force", "Create config even if the file already exists", false )
 	.action(
 	    action_context(async function ({
@@ -363,6 +378,13 @@ export async function main ( argv ) {
                     else if ( !project.isGlobalConnectionConfig() )
 		        throw new Error(`Connection config is already set @ ${project.connectionFilepath}`);
                 }
+
+                const parsed_b64        = Buffer.from( app_token, "base64" );
+
+                if ( parsed_b64.length === 64 )
+                    app_token           = parsed_b64.toString("hex");
+
+                validate_token( app_token );
 
                 const connection        = {
                     app_port,

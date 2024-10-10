@@ -59,7 +59,7 @@ export default function ({ program, action_context, auto_help }) {
 
                     try {
                         // Derive API compatibility
-                        const hdi_line          = await execa(`cargo tree -p ${target_id} | grep "hdi" | head -n 1`, {
+                        const hdi_line          = await execa(`cargo tree -p ${target_id} | grep " hdi " | head -n 1`, {
                             "cwd":      project.cwd,
                             "shell":    true,
                         });
@@ -69,7 +69,7 @@ export default function ({ program, action_context, auto_help }) {
                         if ( cargo_hdi )
                             hdi_version         = cargo_hdi;
 
-                        const hdk_line          = await execa(`cargo tree -p ${target_id} | grep "hdk" | head -n 1`, {
+                        const hdk_line          = await execa(`cargo tree -p ${target_id} | grep " hdk " | head -n 1`, {
                             "cwd":      project.cwd,
                             "shell":    true,
                         });
@@ -120,12 +120,61 @@ export default function ({ program, action_context, auto_help }) {
 			    && zome_pack.zome_type === zome_config.zome_type;
 		    });
 
+                    let maintainer                  = zome_config.maintainer;
+
+                    if ( zome_config.name.startsWith("@") ) {
+                        const [org_name, pack_name] = zome_config.name.slice(1).split("/");
+                        const group_links           = await project.zomehub_client.get_my_group_links();
+                        let existing_group          = group_links.find( link => link.tagString() === org_name );
+
+                        if ( existing_group ) {
+                            const group             = await project.coop_content_client.get_group( existing_group.target );
+                            maintainer              = {
+                                "type": "group",
+                                "content": [ group.$id, group.$action ],
+                            };
+                            print("Using named group '%s': %s", org_name, json.debug(group) );
+                        }
+                        else {
+                            const group_input       = {
+                                "admins":           [ project.app_client.agent_id ],
+                                "members":          [],
+                                "published_at":     Date.now(),
+                                "last_updated":     Date.now(),
+                                "metadata":         {},
+                            };
+
+		            if ( opts.dryRun === false ) {
+                                const group         = await project.coop_content_client.create_group( group_input );
+                                await project.zomehub_client.create_named_group_link([
+                                    org_name, group.$id
+                                ]);
+                                print("Created named group '%s': %s", org_name, json.debug(group) );
+
+                                maintainer          = {
+                                    "type": "group",
+                                    "content": [ group.$id, group.$action ],
+                                };
+                            }
+                            else {
+                                print(
+                                    chalk.yellow("Would create named group '%s': %s"),
+                                    org_name, chalk.white(json.debug(group_input))
+                                );
+                                maintainer          = {
+                                    "type": "group",
+                                    "content": org_name,
+                                };
+                            }
+                        }
+                    }
+
                     let zome_package_input      = {
 			"name":	        target_id,
 			"title":        zome_config.name,
 			"description":  zome_config.description,
 			"zome_type":    zome_config.zome_type,
-			"maintainer":   zome_config.maintainer,
+			"maintainer":   maintainer,
 			"tags":         zome_config.tags,
 			"metadata":     zome_config.metadata,
 		    };
