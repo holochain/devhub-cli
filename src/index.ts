@@ -242,7 +242,10 @@ export async function main ( argv ) {
 		if ( !project.connection )
 		    throw new Error(`No connection config`);
 
-                return String(project.app_client.agent_id);
+                return {
+                    "cell_agent":   project?.app_client?.agent_id,
+                    "client_agent": project?.client_agent,
+                };
 	    })
         );
 
