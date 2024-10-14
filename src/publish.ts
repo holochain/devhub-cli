@@ -170,8 +170,8 @@ export default function ({ program, action_context, auto_help }) {
                     }
 
                     let zome_package_input      = {
-			"name":	        target_id,
-			"title":        zome_config.name,
+			"name":	        zome_config.name,
+			"title":        zome_config.title,
 			"description":  zome_config.description,
 			"zome_type":    zome_config.zome_type,
 			"maintainer":   maintainer,
