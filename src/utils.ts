@@ -34,6 +34,15 @@ export function buildList ( value, list ) {
 }
 
 
+export async function fileExists ( file_path ) {
+    try {
+        await fs.access( file_path );
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
 export async function readJsonFile ( file_path ) {
     return JSON.parse(
 	await fs.readFile(
@@ -75,6 +84,14 @@ export function validate_token ( token ) {
 	throw new TypeError(`Token should be 64 bytes`);
 
     return true;
+}
+
+export function validate_package_name ( name ) {
+    if ( name.split("/").length > 2 )
+        throw new Error(`Invalid package name '${name}'; slashes (/) can only be used to separate org names`);
+
+    if ( name.split("#").length > 1 )
+        throw new Error(`Invalid package name '${name}'; hashes (#) are reserved for indicating package versions`);
 }
 
 export function is_valid_port ( input ) {

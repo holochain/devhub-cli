@@ -27,6 +27,7 @@ import {
     print,
     readJsonFile,
     writeJsonFile,
+    validate_port,
     validate_token,
 }					from './utils.js';
 import config_subprogram_init		from './config.js';
@@ -91,14 +92,16 @@ export async function main ( argv ) {
                 }
             }
 
-	    // Ensure action results are used as the program output
-	    output			= await action_callback.call( this, {
-		log,
-                project,
-	    }, ...args );
-
-            if ( project?.client )
-                await project.client.close();
+            try {
+	        // Ensure action results are used as the program output
+	        output			= await action_callback.call( this, {
+		    log,
+                    project,
+	        }, ...args );
+            } finally {
+                if ( project?.client )
+                    await project.client.close();
+            }
 	};
     }
 
@@ -145,7 +148,7 @@ export async function main ( argv ) {
         // should throw an error instead of just printing a red message.  It could also default to
         // true when main is called programatically.
         //
-        // .option("-d, --data", "Display in a data format", false )
+        .option("-d, --data", "Display in a data format", false )
 	.addOption(
 	    (new Option(
 		"-t, --timeout <number>",
@@ -160,6 +163,9 @@ export async function main ( argv ) {
 	    // Don't allow -q and -v
 	    if ( opts.quiet && opts.verbose > 0 )
 		throw new Error(`Don't use both --quite and --verbose in the same command; which one do you want?`);
+
+	    if ( opts.data )
+		opts.quiet              = true;
 
 	    // Only set the verbosity if a -v is present but start at 2 levels above
 	    if ( opts.verbose > 0 ) {
@@ -252,13 +258,13 @@ export async function main ( argv ) {
     program
 	.command("status")
 	.description("Display the known contexts and settings")
-	.option("-d, --data", "Display in a data format", false )
 	.action(
 	    action_context(async function ({
 		log,
                 project,
 	    }) {
 	        const opts              = this.opts();
+	        const root_opts         = program.opts();
 
 		if ( !project.config )
                     return chalk.white(`Devhub has not been initiated`);
@@ -273,7 +279,7 @@ export async function main ( argv ) {
                     whoami              = err;
                 }
 
-                if ( opts.data ) {
+                if ( root_opts.data ) {
                     return {
                         whoami,
                         project,
@@ -334,6 +340,7 @@ export async function main ( argv ) {
                         "state":            project.connectionState,
                         "connection":       project.connection,
                         "client_agent":     project.client_agent,
+                        "source":           project.connection_src,
                     };
                 } catch (err) {
                     // console.error(err);
@@ -343,6 +350,7 @@ export async function main ( argv ) {
                         "error":            err.message,
                         "connection":       project.connection,
                         "client_agent":     project.client_agent,
+                        "source":           project.connection_src,
                     };
                 } finally {
                     if ( project?.client )
@@ -421,28 +429,29 @@ export async function main ( argv ) {
 		const opts		= this.opts();
 		const conn_opts	        = this.parent.opts();
 
-		if ( !project.config )
-		    throw new Error(`Devhub config does not exist`);
-
                 const connection : any  = { ...project.connection };
 
-                // // Check if connection input is valid
-                // if ( defaults.app_port && !is_valid_port( defaults.app_port ) ) {
-                //     log.error("Invalid app port provided via options: %s", defaults.app_port );
-                //     delete defaults.app_port;
-                // }
-
-                // if ( defaults.app_token && !is_valid_token( defaults.app_token ) ) {
-                //     log.error("Invalid app token provided via options: %s", defaults.app_token );
-                //     delete defaults.app_token;
-                // }
+                // Default to global config if it exists and a local config does not exist
+                if ( project.isGlobalConnectionConfig() === true ) {
+		    log.info(`Default to updating global config: global=%s`, conn_opts.global );
+                    conn_opts.global    = true;
+                }
 
 		switch ( config_prop ) {
 		    case "app_port":
+                        validate_port( value );
+
 			connection.app_port		= parseInt( value );
 			break;
 		    case "app_token":
-			// TODO: check token type
+                        // Check token type
+                        const parsed_b64        = Buffer.from( value, "base64" );
+
+                        if ( parsed_b64.length === 64 )
+                            value               = parsed_b64.toString("hex");
+
+                        validate_token( value );
+
 			connection.app_token		= value;
 			break;
 		    default:
@@ -458,24 +467,37 @@ export async function main ( argv ) {
 	    }, false )
 	);
 
+    program
+	.command("agents")
+	.description("List all agents")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+                return await project.zomehub_client.list_all_agents();
+	    })
+        );
+
 
     initialize_subcommand( config_subprogram_init );
     initialize_subcommand( publish_subprogram_init );
     initialize_subcommand( install_subprogram_init );
     initialize_subcommand( zomes_subprogram_init );
 
-    await program.parseAsync( argv );
+    try {
+        await program.parseAsync( argv );
+    } catch (err) {
+        if ( program.opts().data )
+            throw err;
+        output                          = chalk.red( String(err) );
+    }
     // At this point all subcommand actions have completed
 
     // console.log("Remaining args:", program.args );
     // console.log("Remaining args:", program.opts() );
 
-    try {
-	return output;
-    } finally {
-	// if ( client )
-	//     await client.close();
-    }
+    return output;
 }
 
 if ( typeof process?.mainModule?.filename !== "string" ) {

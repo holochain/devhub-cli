@@ -3,6 +3,7 @@ import fs				from 'fs/promises';
 import path				from 'path';
 import json				from '@whi/json';
 
+import chalk				from 'chalk';
 import { Argument }			from 'commander';
 
 import {
@@ -16,6 +17,8 @@ import {
     print,
     readJsonFile,
     writeJsonFile,
+    fileExists,
+    validate_package_name,
 }					from './utils.js';
 
 
@@ -45,14 +48,28 @@ export default function ({ program, action_context, auto_help }) {
                 await fs.mkdir( wasms_dir, { "recursive": true });
 
                 for ( let tid of target_ids ) {
+                    let version;
+
+                    if ( tid.includes("#") ) {
+                        const parts     = tid.split("#");
+                        tid             = parts[0];
+                        version         = parts[1];
+                    }
+
                     print("Installing target '%s'", tid );
                     const [
                         zome_package,
                         zome_version,
                         zome_wasm,
-                    ]                   = await project.zomehub_client.download_zome_package( tid );
-                    const version       = zome_version.version;
-                    print("Using latest version: %s", version );
+                    ]                   = await project.zomehub_client.download_zome_package({
+                        "name": tid,
+                        version,
+                    });
+
+                    validate_package_name( zome_package.name );
+
+                    const selected_version  = zome_version.version;
+                    print("Using version: %s", selected_version );
 
                     const wasm_filepath = path.resolve(
                         wasms_dir,
@@ -66,15 +83,35 @@ export default function ({ program, action_context, auto_help }) {
 
                     const zome_pointer  = path.resolve(
                         zomes_dir,
-                        `${zome_package.name}-${version}.wasm`,
+                        `${zome_package.name}-${selected_version}.wasm`,
                     );
-                    log.debug("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_filepath );
-                    // TODO: what if it already exists?
+                    const wasm_path_rel = path.relative(
+                        path.dirname( zome_pointer ),
+                        wasm_filepath,
+                    );
+
+                    // Create org directory in case package name has one
+                    log.normal("Creating org directory: %s", path.dirname( zome_pointer ) );
+                    await fs.mkdir( path.dirname( zome_pointer ), {
+                        "recursive":    true,
+                    });
+
+                    // Handle already existing install
+                    if ( await fileExists( zome_pointer ) ) {
+                        // Verify same wasm hashes
+                        const existing_wasm_filepath = await fs.readlink( zome_pointer );
+
+                        if ( existing_wasm_filepath !== wasm_path_rel )
+                            throw new Error(`Existing WASM hash does not match received package; ${existing_wasm_filepath} !== ${zome_wasm.hash}`);
+
+                        print("%s already installed", tid );
+                        continue;
+                    }
+
+                    // log.debug("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_filepath );
+                    log.normal("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_path_rel );
                     await fs.symlink(
-                        path.relative(
-                            path.dirname( zome_pointer ),
-                            wasm_filepath,
-                        ),
+                        wasm_path_rel,
                         zome_pointer,
                     );
 
@@ -85,10 +122,10 @@ export default function ({ program, action_context, auto_help }) {
 
                     const lockspot      = project.lock.zomes[ tid ];
 
-                    if ( lockspot[ version ] === undefined )
-                        lockspot[ version ] = {};
+                    if ( lockspot[ selected_version ] === undefined )
+                        lockspot[ selected_version ] = {};
 
-                    Object.assign( lockspot[ version ], {
+                    Object.assign( lockspot[ selected_version ], {
                         "zome_type":    zome_package.zome_type,
                         "checksum":     zome_wasm.hash,
                         "devhub_source": {

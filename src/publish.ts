@@ -19,6 +19,7 @@ import {
     print,
     readJsonFile,
     writeJsonFile,
+    validate_package_name,
 }					from './utils.js';
 
 
@@ -168,6 +169,8 @@ export default function ({ program, action_context, auto_help }) {
                             }
                         }
                     }
+
+                    validate_package_name( zome_config.name );
 
                     let zome_package_input      = {
 			"name":	        zome_config.name,
