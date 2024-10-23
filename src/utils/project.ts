@@ -5,8 +5,10 @@ import os				from 'os';
 import fs				from 'fs/promises';
 import path				from 'path';
 import cloneDeep			from 'clone-deep';
+import * as ed				from '@noble/ed25519';
 
 import {
+    AgentPubKey,
     ActionHash,
 }					from '@spartan-hc/holo-hash';
 import {
@@ -28,6 +30,7 @@ import ZomeConfig			from './zome_config.js';
 const DEFAULT_USER_HOME_DIRNAME     = process.env.HOME || os.homedir();
 const DEFAULT_DEVHUB_HOME_DIRNAME   = process.env.DEVHUB_HOME || `.devhub`;
 
+const DEFAULT_AGENT_FILEPATH        = `agent.json`;
 const DEFAULT_CONNECTION_FILEPATH   = `connection.json`;
 const DEFAULT_CONFIG_FILEPATH       = `devhub.json`;
 const DEFAULT_LOCK_FILEPATH         = `devhub-lock.json`;
@@ -40,6 +43,9 @@ const DEFAULT_LOCKFILE              = {
 
 export class Project {
     #cwd                : string;
+    #client_agent_file  : Option<any>;
+    #client_secret      : Option<Uint8Array>;
+    #client_pubkey      : Option<Uint8Array>;
     #connection         : Option<ConnectionContext>;
     #connection_src     : Option<String>;
     #config_raw         : Option<any>;
@@ -52,9 +58,11 @@ export class Project {
     #zomehub_zomelet    : any;
     #zomehub_client     : any;
     #mere_memory_client : any;
+    #coop_content_client : any;
 
     USER_HOME_DIRNAME   : string        = DEFAULT_USER_HOME_DIRNAME;
     HOME_DIRNAME        : string        = DEFAULT_DEVHUB_HOME_DIRNAME;
+    AGENT_FILEPATH      : string        = DEFAULT_AGENT_FILEPATH;
     CONNECTION_FILEPATH : string        = DEFAULT_CONNECTION_FILEPATH;
     CONFIG_FILEPATH     : string        = DEFAULT_CONFIG_FILEPATH;
     LOCK_FILEPATH       : string        = DEFAULT_LOCK_FILEPATH;
@@ -75,6 +83,10 @@ export class Project {
     }
 
     get cwd () : string { return this.#cwd; }
+    get client_agent_file () { return this.#client_agent_file; }
+    get client_secret () { return this.#client_secret as Uint8Array; }
+    get client_pubkey () { return this.#client_pubkey as Uint8Array; }
+    get client_agent () { return new AgentPubKey( this.#client_pubkey ); }
     get connection () { return this.#connection; }
     get connection_src () { return this.#connection_src; }
     get config_raw () { return this.#config_raw; }
@@ -157,6 +169,7 @@ export class Project {
 
     async reload () {
         await Promise.all([
+            this.initClientAgent(),
             this.loadConnectionFile(),
             this.loadConfigFile(),
             this.loadLockFile(),
@@ -275,6 +288,10 @@ export class Project {
     //
     // Connection Management
     //
+    get globalAgentFilepath () : string {
+        return path.resolve( this.globalHomedir, this.AGENT_FILEPATH );
+    }
+
     get globalConnectionFilepath () : string {
         return path.resolve( this.globalHomedir, this.CONNECTION_FILEPATH );
     }
@@ -306,11 +323,35 @@ export class Project {
         }
     }
 
+    async loadClientAgentFile () {
+        // Check global client agent config
+        try {
+            this.#client_agent_file = await common.readJsonFile( this.globalAgentFilepath );
+            this.#client_secret     = common.parseHex( this.#client_agent_file.secret );
+            this.#client_pubkey     = await ed.getPublicKeyAsync( this.client_secret );
+        } catch (err) {
+            if ( err.code !== "ENOENT" )
+                throw err;
+            this.#client_agent_file = null;
+            this.#client_secret     = null;
+            this.#client_pubkey     = null;
+        }
+    }
+
+    async initClientAgent () {
+        await this.loadClientAgentFile();
+
+        if ( !this.client_secret ) {
+            await this.setClientAgent( ed.utils.randomPrivateKey() );
+        }
+    }
+
     get client () { return this.#client };
     get app_client () { return this.#app_client };
     get zomehub_zomelet () { return this.#zomehub_zomelet };
     get zomehub_client () { return this.#zomehub_client };
     get mere_memory_client () { return this.#mere_memory_client };
+    get coop_content_client () { return this.#coop_content_client };
 
     async setConnection ({ app_port, app_token }, opts : any = {} ) {
         const connection            = {
@@ -335,6 +376,20 @@ export class Project {
         await this.loadConnectionFile();
     }
 
+    async setClientAgent ( secret ) {
+        const agent                 = {
+            "secret":       Buffer.from( secret ).toString("hex"),
+        };
+        await this.ensureGlobalHomedir();
+
+        log.info("Writing client agent info to %s", this.globalAgentFilepath );
+        await common.writeJsonFile(
+            this.globalAgentFilepath,
+            agent,
+        );
+        await this.loadClientAgentFile();
+    }
+
     async connect () {
         if ( !this.client )
             this.createClient();
@@ -347,6 +402,9 @@ export class Project {
 
         if ( !this.mere_memory_client )
             this.createMereMemoryClient();
+
+        if ( !this.coop_content_client )
+            this.createCoopContentClient();
     }
 
     createClient () {
@@ -356,6 +414,9 @@ export class Project {
 	    "logging":	"fatal",
 	    "conn_options": {
 		// "timeout":	opts.timeout,
+                "ws_options": {
+                    "origin": "holochain-launcher",
+                },
 	    },
 	});
     }
@@ -363,8 +424,20 @@ export class Project {
     async createAppClient () {
         if ( !this.client )
             throw new Error("Client has not been created yet");
+
         const token                 = common.parseHex( this.connection?.app_token );
-	this.#app_client            = await this.client.app( token );
+
+        try {
+	    this.#app_client        = await this.client.app( token );
+            if ( !this.client_secret )
+                throw new Error(`Missing client secret`);
+            await this.app_client.agent.setCapabilityAgent( this.client_secret, new Uint8Array(64) );
+        } catch (err) {
+            if ( err.message.includes(`Connection has been flushed`) )
+                throw new Error(`The connection was flushed by the server; this may be caused by an expired auth token`);
+            else
+                throw err;
+        }
     }
 
     createZomehubClient () {
@@ -384,6 +457,12 @@ export class Project {
         if ( !this.zomehub_client )
             throw new Error("ZomeHub client has not been created yet");
         this.#mere_memory_client    = this.zomehub_zomelet.zomes.mere_memory_api.functions;
+    }
+
+    createCoopContentClient () {
+        if ( !this.zomehub_client )
+            throw new Error("ZomeHub client has not been created yet");
+        this.#coop_content_client   = this.zomehub_zomelet.zomes.coop_content_csr.functions;
     }
 }
 
