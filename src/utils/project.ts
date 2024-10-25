@@ -37,6 +37,7 @@ const DEFAULT_LOCK_FILEPATH         = `devhub-lock.json`;
 
 const DEFAULT_LOCKFILE              = {
     "version":          1,
+    "networks":         {},
     "zomes":            {},
 };
 
@@ -87,6 +88,7 @@ export class Project {
     get client_secret () { return this.#client_secret as Uint8Array; }
     get client_pubkey () { return this.#client_pubkey as Uint8Array; }
     get client_agent () { return new AgentPubKey( this.#client_pubkey ); }
+    get cell_agent () { return this.app_client?.agent_id; }
     get connection () { return this.#connection; }
     get connection_src () { return this.#connection_src; }
     get config_raw () { return this.#config_raw; }
@@ -214,7 +216,10 @@ export class Project {
 
     async loadLockFile () {
         try {
-            this.#lock_raw          = await common.readJsonFile( this.lockFilepath );
+            this.#lock_raw          = Object.assign(
+                DEFAULT_LOCKFILE,
+                await common.readJsonFile( this.lockFilepath ),
+            );
         } catch (err) {
             if ( err.code !== "ENOENT" )
                 throw err;
@@ -243,6 +248,38 @@ export class Project {
         await this.loadConfigFile();
 
         return this.config.zomes[ tid ];
+    }
+
+    getTargetConfig ( target_type, target_id ) {
+        if ( !this.config )
+            throw new Error(`Project config has not been loaded`);
+
+        if ( target_type === "zome" ) {
+	    const target_ids		= Object.keys( this.config.zomes );
+
+	    if ( !target_ids.includes( target_id ) )
+		throw new Error(`No zome target with ID '${target_id}'; available targets: ${target_ids.join(",")}`);
+
+	    const zome_config		= this.config.zomes[ target_id ];
+
+	    if ( zome_config?.constructor?.name !== "ZomeConfig" )
+		throw new TypeError(`Target config should be type 'zome'; not type '${zome_config["type"]}'`);
+
+            return zome_config;
+        }
+
+        throw new TypeError(`Unhandled target type '${target_type}'`);
+    }
+
+    async loadZomeTargetWasm ( target_id ) {
+        const zome_config               = this.getTargetConfig( "zome", target_id );
+
+        return await fs.readFile(
+            path.resolve(
+                path.dirname( this.configFilepath ),
+                zome_config.target
+            )
+        );
     }
 
 
@@ -438,6 +475,10 @@ export class Project {
             else
                 throw err;
         }
+
+        // Set lockfile network
+        if ( this.lock.networks.zomehub === undefined )
+            this.lock.networks.zomehub  = this.app_client.getRoleDnaHash( "zomehub" );
     }
 
     createZomehubClient () {

@@ -2,6 +2,7 @@
 import fs				from 'fs/promises';
 import path				from 'path';
 import cloneDeep			from 'clone-deep';
+import semver				from 'semver';
 
 import {
     AgentPubKey,
@@ -58,16 +59,13 @@ export class ZomeConfig {
         this.#config                = await common.readJsonFile( this.filepath );
     }
 
-    // get creator () {
-    //     return this.config.creator
-    //         ? new AgentPubKey( this.config.creator )
-    //         : null;
-    // }
-
     get name () { return this.config.name; }
     get title () { return this.config.title; }
-    get version () { return this.config.version; }
+    get version () { return semver.clean( this.config.version ); }
     get description () { return this.config.description; }
+    get changelog () { return this.config.changelog || null; }
+    get readme () { return this.config.readme || null; }
+    get source_code_revision_uri () { return this.config.source_code_revision_uri || null; }
 
     get target () {
         return path.resolve(
@@ -88,7 +86,6 @@ export class ZomeConfig {
         return {
             "source":               this.filepath,
             "type":                 "zome",
-            // "creator":              this.creator,
             "name":                 this.name,
             "title":                this.title,
             "version":              this.version,

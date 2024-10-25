@@ -3,7 +3,9 @@ import fs				from 'fs/promises';
 import path				from 'path';
 
 import chalk				from 'chalk';
+import deepEqual			from 'deep-equal';
 import { sprintf }			from 'sprintf-js';
+import { execa }		        from 'execa';
 
 import { Bytes }			from '@whi/bytes-class';
 
@@ -123,17 +125,86 @@ export function snakeToWords( str ) {
 }
 
 
+export async function deriveHdiVersionForCrate ( cwd, crate_name, required: boolean = true ) {
+    const hdi_line                      = await execa(`cargo tree -p ${crate_name} | grep " hdi " | head -n 1`, {
+        "cwd":      cwd,
+        "shell":    true,
+    });
+    // log.debug("Cargo tree result for 'hdi': %s", hdi_line.stdout );
+    const cargo_hdi                     = hdi_line.stdout.match(/hdi v(.*)/)?.[1];
+
+    if ( !cargo_hdi && required === true )
+        throw new Error(`Could not determine 'hdi' version from cargo tree:\n${hdi_line.stdout}`);
+
+    return cargo_hdi || null;
+}
+
+export async function deriveHdkVersionForCrate ( cwd, crate_name, required: boolean = true ) {
+    const hdk_line                      = await execa(`cargo tree -p ${crate_name} | grep " hdk " | head -n 1`, {
+        "cwd":      cwd,
+        "shell":    true,
+    });
+    // log.debug("Cargo tree result for 'hdk': %s", hdk_line.stdout );
+    const cargo_hdk                     = hdk_line.stdout.match(/hdk v(.*)/)?.[1];
+
+    if ( !cargo_hdk && required === true )
+        throw new Error(`Could not determine 'hdk' version from cargo tree:\n${hdk_line.stdout}`);
+
+    return cargo_hdk || null;
+}
+
+export async function deriveHolochainVersionForCrate ( cwd, required: boolean = true ) {
+    const holochain_line                = await execa(`holochain --version`, {
+        "cwd":      cwd, // Maybe this shouldn't be here?
+        "shell":    true,
+    });
+    // log.debug("Holochain version: %s", holochain_line.stdout );
+
+    const holochain_version             = holochain_line.stdout.split(" ")[1];
+
+    if ( !holochain_version && required === true )
+        throw new Error(`Could not determine 'holochain' version from cwd ${cwd}`);
+
+    return holochain_version || null;
+}
+
+
+export function deepSubset( obj1, obj2 ) {
+    for ( let key in obj2 ) {
+        if ( typeof obj2[key] === 'object' && obj2[key] !== null ) {
+            if ( !deepEqual( obj1[key], obj2[key] ) )
+                return false;
+        }
+        else if ( obj1[key] !== obj2[key] )
+            return false;
+    }
+
+    return true;
+}
+
+
 export default {
     print,
     parseHex,
+    buildList,
+
+    fileExists,
     readJsonFile,
     writeJsonFile,
 
     validate_port,
     validate_token,
+    validate_package_name,
 
     is_valid_port,
     is_valid_token,
 
     snakeToWords,
+
+    deriveHdiVersionForCrate,
+    deriveHdkVersionForCrate,
+    deriveHolochainVersionForCrate,
+
+    deepEqual,
+    deepSubset,
 };

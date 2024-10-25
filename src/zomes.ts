@@ -5,6 +5,7 @@ import path				from 'path';
 import toml				from 'toml';
 import chalk				from 'chalk';
 import inquirer				from 'inquirer';
+import semver				from 'semver';
 import {
     Argument,
     Option,
@@ -200,37 +201,130 @@ const init : SubprogramInitFunction = async function (
         );
 
     subprogram
-	.command("list")
-	.description("List my zomes")
+	.command("info")
+	.description("Get info about a zome package name")
+        .argument("<name>", "Package name")
 	.action(
 	    action_context(async function ({
 		log,
                 project,
-	    }) {
+	    }, package_name ) {
+		const root_opts	        = program.opts();
+
+		const zome_package      = await project.zomehub_client.get_zome_package_by_name( package_name );
+		const versions          = await project.zomehub_client.get_zome_package_versions_sorted( zome_package.$id );
+
+                if ( root_opts.data === true ) {
+                    return {
+                        "$id":      zome_package.$id,
+                        "$action":  zome_package.$action,
+                        "$addr":    zome_package.$addr,
+                        ...zome_package.toJSON(),
+                        "versions": versions,
+                    };
+                }
+
+                return [
+                    `${chalk.white(zome_package.name)} ` + chalk.gray(`(${zome_package.$id})`),
+                    chalk.cyan(`  [${zome_package.zome_type}] ${zome_package.title}`),
+                    `  ${zome_package.description}`,
+                    ``,
+                    chalk.magenta(`Versions`),
+                    versions.map( zome_version => {
+                        return `  ${chalk.white("v" + zome_version.version)}` + chalk.gray(` (v${zome_version.api_compatibility?.tested_with})`);
+                    }),
+                ].join("\n");
+            })
+        );
+
+    subprogram
+	.command("list")
+	.description("List zomes")
+        .option(`-a, --all`, `List all zome package names` )
+        .argument("[agent]", "Agent pubkey (default to cell agent)")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, agent ) {
 		const opts		= this.opts();
+		const root_opts	        = program.opts();
+
+                if ( opts.all ) {
+		    const links	        = await project.zomehub_client.get_all_zome_package_links();
+
+                    if ( root_opts.data === true )
+                        return links;
+
+                    return links.map( link => {
+                        return [
+                            `${chalk.white(link.tagString())} ` + chalk.gray(`(by ${link.author})`),
+                        ].join("\n");
+                    }).join("\n\n");
+                }
 
 		const packages		= [] as any[];
-		const zome_packages	= await project.zomehub_client.get_zome_packages_for_agent() as Record<string, any>;
-		const package_ids	= [] as Array<ZomeTarget["zome_package_id"]>;
+		const zome_packages	= await project.zomehub_client.get_zome_packages_for_agent( agent ) as Record<string, any>;
 
 		for ( let [entity_id, zome_package] of Object.entries( zome_packages ) ) {
-		    package_ids.push( entity_id );
-		    packages.push({
-			"zome_package_id": entity_id,
-			...zome_package,
-		    });
+		    packages.push( zome_package );
 		}
 
-		// for ( let zome_config of Object.values(project.config.zomes) ) {
-		//     packages.push({
-		// 	"zome_package_id": null,
-		// 	...zome_config,
-		//     });
-		// }
+                if ( root_opts.data === true )
+                    return packages;
 
-		return packages;
+                return packages.map( zome_package => {
+                    return [
+                        `${chalk.white(zome_package.name)} ` + chalk.gray(`(${zome_package.$id})`),
+                        chalk.cyan(`  [${zome_package.zome_type}] ${zome_package.title}`),
+                        `  ${zome_package.description}`,
+                    ].join("\n");
+                }).join("\n\n");
 	    })
 	);
+
+    const delete_subprogram            = subprogram
+        .command("delete")
+        .description("Delete a zome package")
+        .argument("<id>", "Zome target ID")
+        .option("-f, --force", "Skip confirmation prompt", false )
+        .action(
+            action_context(async function ({
+                log,
+                project,
+            }, target_id ) {
+                const opts              = this.opts();
+
+                const zome_config       = project.getTargetConfig( "zome", target_id );
+                const zome_package      = await project.zomehub_client.get_existing_zome_package({
+                    "name":         zome_config.name,
+                    "zome_type":    zome_config.zome_type,
+                });
+
+                if ( !zome_package )
+                    throw new Error(`Could not find existing package for '${zome_config.name}'`);
+
+                if ( opts.force !== true ) {
+                    const prompt        = inquirer.createPromptModule();
+                    const answers       = await prompt([
+                        {
+                            "type":     "confirm",
+                            "name":     "confirm_delete",
+                            "message":  `Are you sure you want to delete zome package '${zome_package.name}' (${zome_package.$id})?`,
+                            "default":  false,
+                        },
+                    ]);
+
+                    if ( answers.confirm_delete !== true )
+                        return;
+                }
+
+                await project.zomehub_client.delete_zome_package( zome_package.$id );
+
+                return zome_package;
+            })
+        );
+
 
     const versions_subprogram		= subprogram
 	.command("versions")
@@ -288,6 +382,58 @@ const init : SubprogramInitFunction = async function (
                     : package_map;
 	    })
 	);
+
+    const delete_version_subprogram     = versions_subprogram
+        .command("delete")
+        .description("Delete a zome package version")
+        .argument("<id>", "Zome target ID")
+        .argument("<version>", "Version to delete")
+        .option("-f, --force", "Skip confirmation prompt", false )
+        .action(
+            action_context(async function ({
+                log,
+                project,
+            }, target_id, version ) {
+                const opts              = this.opts();
+
+                const zome_config       = project.getTargetConfig( "zome", target_id );
+                const zome_package      = await project.zomehub_client.get_existing_zome_package({
+                    "name":         zome_config.name,
+                    "zome_type":    zome_config.zome_type,
+                });
+
+                if ( !zome_package )
+                    throw new Error(`Could not find existing package for '${zome_config.name}'`);
+
+                const zome_version      = await project.zomehub_client.get_existing_zome_package_version({
+                    "version":      semver.clean( version ),
+                    "for_package":  zome_package.$id,
+                });
+
+                if ( !zome_version )
+                    throw new Error(`Could not find existing version '${version}' for package '${zome_config.name}'`);
+
+                if ( opts.force !== true ) {
+                    const prompt        = inquirer.createPromptModule();
+                    const answers       = await prompt([
+                        {
+                            "type":     "confirm",
+                            "name":     "confirm_delete",
+                            "message":  `Are you sure you want to delete zome package '${zome_package.name}' version '${zome_version.version}' (${zome_version.$id})?`,
+                            "default":  false,
+                        },
+                    ]);
+
+                    if ( answers.confirm_delete !== true )
+                        return;
+                }
+
+                await project.zomehub_client.delete_zome_package_version( zome_version.$id );
+
+                return zome_version;
+            })
+        );
+
 
     const wasms_subprogram		= subprogram
 	.command("wasms")

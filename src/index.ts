@@ -33,7 +33,9 @@ import {
 import config_subprogram_init		from './config.js';
 import publish_subprogram_init		from './publish.js';
 import install_subprogram_init		from './install.js';
+import uninstall_subprogram_init	from './uninstall.js';
 import zomes_subprogram_init		from './zomes.js';
+import orgs_subprogram_init		from './orgs.js';
 import {
     Project,
 }                                       from './utils/project.js';
@@ -249,7 +251,7 @@ export async function main ( argv ) {
 		    throw new Error(`No connection config`);
 
                 return {
-                    "cell_agent":   project?.app_client?.agent_id,
+                    "cell_agent":   project?.cell_agent,
                     "client_agent": project?.client_agent,
                 };
 	    })
@@ -339,8 +341,14 @@ export async function main ( argv ) {
                     return {
                         "state":            project.connectionState,
                         "connection":       project.connection,
+                        "cell_agent":       project.cell_agent,
                         "client_agent":     project.client_agent,
                         "source":           project.connection_src,
+                        "networks":         project.app_client
+                            ? {
+                                "zomehub":      project.app_client.getRoleDnaHash( "zomehub" ),
+                            }
+                            : null,
                     };
                 } catch (err) {
                     // console.error(err);
@@ -349,8 +357,14 @@ export async function main ( argv ) {
                         "state":            project.connectionState,
                         "error":            err.message,
                         "connection":       project.connection,
+                        "cell_agent":       project.cell_agent,
                         "client_agent":     project.client_agent,
                         "source":           project.connection_src,
+                        "networks":         project.app_client
+                            ? {
+                                "zomehub":      project.app_client.getRoleDnaHash( "zomehub" ),
+                            }
+                            : null,
                     };
                 } finally {
                     if ( project?.client )
@@ -483,7 +497,9 @@ export async function main ( argv ) {
     initialize_subcommand( config_subprogram_init );
     initialize_subcommand( publish_subprogram_init );
     initialize_subcommand( install_subprogram_init );
+    initialize_subcommand( uninstall_subprogram_init );
     initialize_subcommand( zomes_subprogram_init );
+    initialize_subcommand( orgs_subprogram_init );
 
     try {
         await program.parseAsync( argv );
@@ -503,13 +519,15 @@ export async function main ( argv ) {
 if ( typeof process?.mainModule?.filename !== "string" ) {
     try {
 	const output			= await main( process.argv );
+        // Turn quiet off for final output
+        print.quiet                     = false;
 
         if ( typeof output === "string" )
             console.log( output );
 	else if ( !["", undefined].includes(output) ) {
 	    if ( process.stdout.isTTY )
 		print( json.debug(output) );
-	    else if ( !print.quiet )
+	    else
 		console.log( JSON.stringify(output, null, 4) );
 	}
     } catch (err) {

@@ -24,15 +24,16 @@ import {
 
 export default function ({ program, action_context, auto_help }) {
     const subprogram			= program
-	.command("install")
+	.command("install").alias("i")
 	.description("Install a target")
-	.argument("<target-id...>", "Target ID")
+	.argument("<package-spec...>", "List of zome package specs to be installed")
 	.action(
 	    action_context(async function ({
 		log,
 		project,
-	    }, target_ids ) {
+	    }, package_specs ) {
 		const opts		= this.opts();
+		const root_opts		= program.opts();
 
                 const zomes_dir         = path.resolve(
                     project.homedir,
@@ -43,26 +44,50 @@ export default function ({ program, action_context, auto_help }) {
                     "wasms",
                 );
 
+                if ( project.lock.networks?.zomehub
+                    && project.lock.networks.zomehub !== project.app_client.getRoleDnaHash( "zomehub" ) ) {
+                    console.log([
+                        chalk.red(`Lockfile network does not match connected devhub instance`),
+                        chalk.yellow(`  Expected: ${project.lock.networks.zomehub}`),
+                        chalk.yellow(`   Current: ${project.app_client.getRoleDnaHash( "zomehub" )}`),
+                        ``,
+                        `Support for multiple devhub networks has not been implemeted yet.  To continue...`,
+                        `  1. Backup and remove your current 'devhub-lock.json'`,
+                        `  2. Backup and remove your current '.devhub' directory`,
+                        `  3. Reinstall your dependencies from the current devhub network`,
+                        `    a. If some dependencies are not yet published on the network, you can either publish them yourself, or use the WASMs from the backup created in step 2`,
+                        ``,
+                    ].join("\n"));
+
+                    if ( root_opts.data )
+                        throw new Error(`Lockfile network does not match connected devhub instance; ${project.lock.networks.zomehub} !== ${project.app_client.getRoleDnaHash( "zomehub" )}`);
+
+                    return;
+                }
+
                 await project.ensureHomedir();
                 await fs.mkdir( zomes_dir, { "recursive": true });
                 await fs.mkdir( wasms_dir, { "recursive": true });
 
-                for ( let tid of target_ids ) {
+                const installed_packages    = [] as Array<string>;
+
+                for ( let package_spec of package_specs ) {
+                    let pname           = package_spec;
                     let version;
 
-                    if ( tid.includes("#") ) {
-                        const parts     = tid.split("#");
-                        tid             = parts[0];
+                    if ( package_spec.includes("#") ) {
+                        const parts     = package_spec.split("#");
+                        pname           = parts[0];
                         version         = parts[1];
                     }
 
-                    print("Installing target '%s'", tid );
+                    print("Installing target '%s'", pname );
                     const [
                         zome_package,
                         zome_version,
                         zome_wasm,
                     ]                   = await project.zomehub_client.download_zome_package({
-                        "name": tid,
+                        "name": pname,
                         version,
                     });
 
@@ -104,7 +129,7 @@ export default function ({ program, action_context, auto_help }) {
                         if ( existing_wasm_filepath !== wasm_path_rel )
                             throw new Error(`Existing WASM hash does not match received package; ${existing_wasm_filepath} !== ${zome_wasm.hash}`);
 
-                        print("%s already installed", tid );
+                        print("%s already installed", pname );
                         continue;
                     }
 
@@ -117,10 +142,10 @@ export default function ({ program, action_context, auto_help }) {
 
                     delete zome_wasm.bytes;
 
-                    if ( project.lock.zomes[ tid ] === undefined )
-                        project.lock.zomes[ tid ] = {};
+                    if ( project.lock.zomes[ pname ] === undefined )
+                        project.lock.zomes[ pname ] = {};
 
-                    const lockspot      = project.lock.zomes[ tid ];
+                    const lockspot      = project.lock.zomes[ pname ];
 
                     if ( lockspot[ selected_version ] === undefined )
                         lockspot[ selected_version ] = {};
@@ -150,9 +175,11 @@ export default function ({ program, action_context, auto_help }) {
                     });
 
                     await project.saveLock();
+
+                    installed_packages.push( pname );
                 }
 
-                return target_ids;
+                return installed_packages;
             })
         );
 
