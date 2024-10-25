@@ -47,7 +47,55 @@ The DevHub CLI requires a Holochain runtime with the DevHub App installed.
 
 ### Using Launcher
 
-TBD
+1. Install Launcher
+2. Install DevHub
+3. Install DevHub CLI
+4. Setup CLI access to Launcher
+
+
+##### Install Launcher
+
+Download `v0.400.0-rc.2` from https://github.com/holochain/launcher/releases/tag/v0.400.0-rc.2 and
+install.
+
+
+##### Install DevHub
+
+Download `devhub.happ` from
+https://github.com/holochain/devhub-dnas/releases/tag/zomehub-zomelets-v0.2.0-dev.2
+
+- Open Launcher
+- Complete setup
+- Install `devhub.happ` from file system
+  - Use network `devhub-beta-testing`
+
+
+##### Install DevHub CLI
+
+```
+npm i -g @holochain/devhub-cli
+```
+
+Test install with
+```
+devhub connection status
+```
+
+
+##### Setup CLI access to Launcher
+
+- Go to Launcher settings
+- Navigate to the `devhub` app you just installed
+- Under settings
+  - Generate an unlimited use authentication token that's valid until Launcher is quit.
+  - Copy that token and the `App Port` displayed on the same settings page
+    - `devhub connection -g set <app port>, <auth token>`
+  - Test the connection with `devhub connection status`.  You should get a `CapGrant` error
+  - Copy the `client_agent` from the connection status output use it to "Grant Permission" on the
+    devhub settings page
+  - Test the connection again and the status should say `CONNECTED`
+
+Now you can explore the CLI tool using `--help`
 
 
 ### Using Backdrop
