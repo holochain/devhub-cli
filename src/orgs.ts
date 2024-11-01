@@ -77,6 +77,50 @@ const init : SubprogramInitFunction = async function (
 	    })
 	);
 
+    const invites_subprogram               = subprogram
+	.command("invites")
+	.description("List my invitations to orgs")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }) {
+		const opts		= this.opts();
+		const root_opts	        = program.opts();
+
+                const orgs              = await project.zomehub_client.get_my_org_invites();
+
+                if ( root_opts.data === true )
+                    return orgs;
+
+                return orgs.map( org => {
+                    const group         = org.invite.group;
+                    return [
+                        chalk.white(`@${org.name} `) + chalk.gray(`(${group.$id})`),
+                        chalk.cyan(`  Admins:`),
+                        ...group.admins.map( agent => chalk.cyan(`    ${agent}`) ),
+                        chalk.yellow(`  Members:`),
+                        ...group.members.length
+                            ? group.members.map( agent => chalk.yellow(`    ${agent}`) )
+                            : [ chalk.yellow("    No members") ],
+                    ].join("\n");
+                }).join("\n\n");
+	    })
+	);
+
+    invites_subprogram
+	.command("accept")
+	.description("Accept an org invitation")
+	.argument("<name>", "Org name")
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, org_name ) {
+                return await project.zomehub_client.accept_invitation_to_group( org_name );
+            })
+        );
+
     list_subprogram
 	.command("packages")
 	.description("List my orgs")
@@ -111,11 +155,61 @@ const init : SubprogramInitFunction = async function (
             })
         );
 
-    const add_subprogram		= subprogram
+    subprogram
 	.command("add")
+	.description("Add org to my orgs")
+	.argument("<name>", "Org name")
+        .option("-f, --force", "Ignore org membership check", false )
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, org_name ) {
+		const opts		= this.opts();
+		const root_opts	        = program.opts();
+
+                const group             = await project.zomehub_client.get_group_by_name( org_name );
+
+                if ( opts.force === false && !group.isContributor( project.cell_agent ) )
+                    throw new Error(`You are not a contributor to '@${org_name}' group (${group.$id})`);
+
+                return await project.zomehub_client.create_named_group_link([
+                    org_name,
+                    group.$id,
+                ]);
+	    })
+	);
+
+    subprogram
+	.command("remove")
+	.description("Remove org from my orgs")
+	.argument("<name>", "Org name")
+	.allowExcessArguments( false )
+	.action(
+	    action_context(async function ({
+		log,
+                project,
+	    }, org_name ) {
+		const opts		= this.opts();
+		const root_opts	        = program.opts();
+
+                if ( !org_name.startsWith("@") )
+                    org_name            = `@${org_name}`;
+
+                const orgs              = await project.zomehub_client.get_my_orgs();
+
+                if ( !orgs.find( org => org.name === org_name.slice(1) ) )
+                    throw new Error(`Org '${org_name}' is not in your orgs list`);
+
+                return await project.zomehub_client.remove_named_group_link( org_name );
+	    })
+	);
+
+    subprogram
+	.command("add-member")
 	.description("Add a member to org")
 	.argument("<name>", "Org name")
-	.argument("<agent>", "Agent pubkey of new member")
+	.argument("<agent>", "Cell agent pubkey of new member")
         .option("--admin", "Add member with admin privilegs", false )
 	.action(
 	    action_context(async function ({
@@ -147,12 +241,13 @@ const init : SubprogramInitFunction = async function (
 	    })
 	);
 
-    const remove_subprogram		= subprogram
-	.command("remove")
+    subprogram
+	.command("remove-member")
 	.description("Remove a member from org")
 	.argument("<name>", "Org name")
-	.argument("<agent>", "Agent pubkey to be removed")
+	.argument("<agent>", "Cell agent pubkey to be removed")
         .option("--admin", "Add member with admin privilegs", false )
+	.allowExcessArguments( false )
 	.action(
 	    action_context(async function ({
 		log,

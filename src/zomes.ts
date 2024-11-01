@@ -203,16 +203,30 @@ const init : SubprogramInitFunction = async function (
     subprogram
 	.command("info")
 	.description("Get info about a zome package name")
-        .argument("<name>", "Package name")
+        .argument("<name>", "Zome package name")
+        .argument("[version]", "Zome package version", semver.clean )
 	.action(
 	    action_context(async function ({
 		log,
                 project,
-	    }, package_name ) {
+	    }, package_name, package_version ) {
 		const root_opts	        = program.opts();
 
 		const zome_package      = await project.zomehub_client.get_zome_package_by_name( package_name );
 		const versions          = await project.zomehub_client.get_zome_package_versions_sorted( zome_package.$id );
+
+                // Display details about the given version
+                if ( package_version ) {
+                    const zome_version  = versions.find( zome_version => zome_version.version === package_version );
+
+                    if ( !zome_version )
+                        throw new Error(`Zome package '${package_name}' does not have version v${package_version}`);
+
+                    if ( root_opts.data === true )
+                        return zome_version;
+
+                    return `${chalk.white("v" + zome_version.version)}` + chalk.gray(` (Holochain v${zome_version.api_compatibility?.tested_with})`);
+                }
 
                 if ( root_opts.data === true ) {
                     return {
@@ -231,8 +245,8 @@ const init : SubprogramInitFunction = async function (
                     ``,
                     chalk.magenta(`Versions`),
                     versions.map( zome_version => {
-                        return `  ${chalk.white("v" + zome_version.version)}` + chalk.gray(` (v${zome_version.api_compatibility?.tested_with})`);
-                    }),
+                        return `  ${chalk.white("v" + zome_version.version)}` + chalk.gray(` (Holochain v${zome_version.api_compatibility?.tested_with})`);
+                    }).join("\n"),
                 ].join("\n");
             })
         );
@@ -240,35 +254,128 @@ const init : SubprogramInitFunction = async function (
     subprogram
 	.command("list")
 	.description("List zomes")
-        .option(`-a, --all`, `List all zome package names` )
-        .argument("[agent]", "Agent pubkey (default to cell agent)")
+        .option("-a, --agent <agent>", "Filter by given agent pubkey")
+        .option("-l, --limit <number>", "Full package info limit", parseInt, 20 )
+        .option("--exclude-orgs", "Do not include zome packages by associated orgs", false )
+        .argument("[search]", "Filter packages by search phrase")
 	.action(
 	    action_context(async function ({
 		log,
                 project,
-	    }, agent ) {
+	    }, search ) {
 		const opts		= this.opts();
 		const root_opts	        = program.opts();
 
-                if ( opts.all ) {
+		const package_map	= {} as Record<string, any>;
+		let search_list	        = [] as any[];
+
+                // Create package list from source
+                if ( opts.agent ) {
+                    // Get packages created by this agent
+		    const zome_packages = await project.zomehub_client.get_zome_packages_for_agent(
+                        opts.agent === "me"
+                            ? null
+                            : opts.agent
+                    ) as Record<string, any>;
+
+		    for ( let [entity_id, zome_package] of Object.entries( zome_packages ) ) {
+		        search_list.push({
+                            "name":     zome_package.name,
+                            "index": [
+                                zome_package.name,
+                                zome_package.title,
+                                zome_package.description,
+                            ].join("//").toLowerCase(),
+                        });
+                        package_map[zome_package.name]  = zome_package;
+		    }
+
+                    if ( opts.excludeOrgs === false ) {
+                        // Get packages associated with this agent's orgs
+                        const orgs          = await project.zomehub_client.get_my_orgs();
+
+                        for ( let org of orgs ) {
+                            const zomes             = await project.zomehub_client.get_zome_packages_for_group( org.group.$id );
+                            const zome_packages     = await project.zomehub_client.get_zome_packages_for_org( org.name );
+
+		            for ( let zome_package of zome_packages ) {
+		                search_list.push({
+                                    "name":     zome_package.name,
+                                    "index": [
+                                        zome_package.name,
+                                        zome_package.title,
+                                        zome_package.description,
+                                    ].join("//").toLowerCase(),
+                                });
+                                package_map[zome_package.name]  = zome_package;
+		            }
+                        }
+                    }
+                }
+                else {
 		    const links	        = await project.zomehub_client.get_all_zome_package_links();
 
-                    if ( root_opts.data === true )
-                        return links;
+		    for ( let link of links ) {
+                        const name      = link.tagString();
+		        search_list.push({
+                            "name":     name,
+                            "index":    name.toLowerCase(),
+                        });
+                        package_map[name]   = link;
+                    }
+                }
 
-                    return links.map( link => {
-                        return [
-                            `${chalk.white(link.tagString())} ` + chalk.gray(`(by ${link.author})`),
-                        ].join("\n");
+                if ( search ) {
+                    search_list             = search_list.filter( ({ index }) => {
+                        return index.includes( search.toLowerCase() );
+                    });
+                }
+
+                // Remove duplicates
+                const package_names         = [] as string[];
+                search_list                 = search_list.filter( ({ name }) => {
+                    if (  package_names.includes( name ) )
+                        return false;
+
+                    package_names.push( name );
+
+                    return true;
+                });
+
+                // Avoid fetching all packages if list is too long
+                if ( search_list.length > opts.limit ) {
+                    const pack_list         = search_list.map( ({ name }) => {
+                        const pack_info     = package_map[ name ];
+
+                        return pack_info;
+                    });
+
+                    if ( root_opts.data === true )
+                        return pack_list;
+
+                    // Package list could still be just a link at this point
+                    return pack_list.map( pack_info => {
+                        const name          = pack_info.name || pack_info.tagString();
+                        const author        = pack_info.author
+                            ? `agent ${pack_info.author}`
+                            : ( pack_info.maintainer.type === "group"
+                                ? `group ${pack_info.maintainer.content[0]}`
+                                : `agent ${pack_info.maintainer.content}`
+                              );
+                        return `${chalk.white(name)} ` + chalk.gray(`(by ${author})`);
                     }).join("\n\n");
                 }
 
-		const packages		= [] as any[];
-		const zome_packages	= await project.zomehub_client.get_zome_packages_for_agent( agent ) as Record<string, any>;
+                // Fetch remaining zome packages
+                const packages              = [] as any[];
 
-		for ( let [entity_id, zome_package] of Object.entries( zome_packages ) ) {
-		    packages.push( zome_package );
-		}
+                for ( let { name, index } of search_list ) {
+                    const pack_info         = package_map[name];
+                    if ( pack_info.target )
+                        packages.push( await project.zomehub_client.get_zome_package_by_name( name ) );
+                    else
+                        packages.push( pack_info );
+                }
 
                 if ( root_opts.data === true )
                     return packages;

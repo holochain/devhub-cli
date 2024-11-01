@@ -45,7 +45,7 @@ export default function ({ program, action_context, auto_help }) {
                 );
 
                 if ( project.lock.networks?.zomehub
-                    && project.lock.networks.zomehub !== project.app_client.getRoleDnaHash( "zomehub" ) ) {
+                    && project.lock.networks.zomehub !== String(project.app_client.getRoleDnaHash( "zomehub" )) ) {
                     console.log([
                         chalk.red(`Lockfile network does not match connected devhub instance`),
                         chalk.yellow(`  Expected: ${project.lock.networks.zomehub}`),
@@ -108,23 +108,42 @@ export default function ({ program, action_context, auto_help }) {
 
                     const zome_pointer  = path.resolve(
                         zomes_dir,
+                        `${zome_package.name}.wasm`,
+                    );
+                    const zome_version_pointer  = path.resolve(
+                        zomes_dir,
                         `${zome_package.name}-${selected_version}.wasm`,
                     );
                     const wasm_path_rel = path.relative(
-                        path.dirname( zome_pointer ),
+                        path.dirname( zome_version_pointer ),
                         wasm_filepath,
                     );
 
                     // Create org directory in case package name has one
-                    log.normal("Creating org directory: %s", path.dirname( zome_pointer ) );
-                    await fs.mkdir( path.dirname( zome_pointer ), {
+                    log.normal("Creating org directory: %s", path.dirname( zome_version_pointer ) );
+                    await fs.mkdir( path.dirname( zome_version_pointer ), {
                         "recursive":    true,
                     });
 
+                    // Ensure the named pointer is pointing at this WASM
+                    try {
+                        await fs.access( zome_pointer );
+                        await fs.unlink( zome_pointer );
+                    } catch (err) {
+                        if ( err.code !== "ENOENT" )
+                            throw err;
+                    }
+
+                    log.normal("Creating generic pointer to WASM: %s => %s", zome_pointer, wasm_path_rel );
+                    await fs.symlink(
+                        wasm_path_rel,
+                        zome_pointer,
+                    );
+
                     // Handle already existing install
-                    if ( await fileExists( zome_pointer ) ) {
+                    if ( await fileExists( zome_version_pointer ) ) {
                         // Verify same wasm hashes
-                        const existing_wasm_filepath = await fs.readlink( zome_pointer );
+                        const existing_wasm_filepath = await fs.readlink( zome_version_pointer );
 
                         if ( existing_wasm_filepath !== wasm_path_rel )
                             throw new Error(`Existing WASM hash does not match received package; ${existing_wasm_filepath} !== ${zome_wasm.hash}`);
@@ -133,11 +152,10 @@ export default function ({ program, action_context, auto_help }) {
                         continue;
                     }
 
-                    // log.debug("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_filepath );
-                    log.normal("Creating named pointer to WASM: %s => %s", zome_pointer, wasm_path_rel );
+                    log.normal("Creating named pointer to WASM: %s => %s", zome_version_pointer, wasm_path_rel );
                     await fs.symlink(
                         wasm_path_rel,
-                        zome_pointer,
+                        zome_version_pointer,
                     );
 
                     delete zome_wasm.bytes;
@@ -166,7 +184,7 @@ export default function ({ program, action_context, auto_help }) {
                             ),
                             "zome_filepath":                path.relative(
                                 path.dirname( project.lockFilepath ),
-                                zome_pointer,
+                                zome_version_pointer,
                             ),
                             "file_size":                    zome_wasm.file_size,
                         },

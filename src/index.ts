@@ -504,14 +504,13 @@ export async function main ( argv ) {
     try {
         await program.parseAsync( argv );
     } catch (err) {
+        if ( err.code?.startsWith("commander") )
+            throw err;
         if ( program.opts().data )
             throw err;
         output                          = chalk.red( String(err) );
     }
     // At this point all subcommand actions have completed
-
-    // console.log("Remaining args:", program.args );
-    // console.log("Remaining args:", program.opts() );
 
     return output;
 }
