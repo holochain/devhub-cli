@@ -26,7 +26,7 @@ export default function ({ program, action_context, auto_help }) {
     const subprogram			= program
 	.command("install").alias("i")
 	.description("Install a target")
-	.argument("<package-spec...>", "List of zome package specs to be installed")
+	.argument("[package-spec...]", "List of zome package specs to be installed")
 	.action(
 	    action_context(async function ({
 		log,
@@ -44,6 +44,7 @@ export default function ({ program, action_context, auto_help }) {
                     "wasms",
                 );
 
+                // Check lockfile network against connected network
                 if ( project.lock.networks?.zomehub
                     && project.lock.networks.zomehub !== String(project.app_client.getRoleDnaHash( "zomehub" )) ) {
                     console.log([
@@ -65,6 +66,14 @@ export default function ({ program, action_context, auto_help }) {
                     return;
                 }
 
+                if ( package_specs.length === 0 ) {
+                    for ( let [pname, versions] of Object.entries(project.lock.zomes) ) {
+                        for ( let [version, info] of Object.entries(versions as Record<string, any>) ) {
+                            package_specs.push(`${pname}#${version}!${info.checksum}`);
+                        }
+                    }
+                }
+
                 await project.ensureHomedir();
                 await fs.mkdir( zomes_dir, { "recursive": true });
                 await fs.mkdir( wasms_dir, { "recursive": true });
@@ -74,6 +83,13 @@ export default function ({ program, action_context, auto_help }) {
                 for ( let package_spec of package_specs ) {
                     let pname           = package_spec;
                     let version;
+                    let checksum;
+
+                    if ( package_spec.includes("!") ) {
+                        const parts     = package_spec.split("!");
+                        package_spec    = parts[0];
+                        checksum        = parts[1];
+                    }
 
                     if ( package_spec.includes("#") ) {
                         const parts     = package_spec.split("#");
@@ -92,6 +108,18 @@ export default function ({ program, action_context, auto_help }) {
                     });
 
                     validate_package_name( zome_package.name );
+
+                    {
+                        const wasm_hash = await project.mere_memory_client.calculate_hash( zome_wasm.bytes );
+                        if ( checksum && checksum !== wasm_hash ) {
+                            log.warn("Package spec '%s' returned a different checksum than expected by the lockfile: %s !== %s", () => [
+                                package_spec,
+                                checksum,
+                                wasm_hash,
+                            ]);
+                            continue;
+                        }
+                    }
 
                     const selected_version  = zome_version.version;
                     print("Using version: %s", selected_version );

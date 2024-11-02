@@ -86,14 +86,15 @@ devhub connection status
 
 - Go to Launcher settings
 - Navigate to the `devhub` app you just installed
-- Under settings
+- Under Settings -> Advanced Settings
   - Generate an unlimited use authentication token that's valid until Launcher is quit.
   - Copy that token and the `App Port` displayed on the same settings page
     - `devhub connection -g set <app port>, <auth token>`
-  - Test the connection with `devhub connection status`.  You should get a `CapGrant` error
-  - Copy the `client_agent` from the connection status output use it to "Grant Permission" on the
-    devhub settings page
-  - Test the connection again and the status should say `CONNECTED`
+  - Test the connection with `devhub connection status`
+  - Try the command `devhub zomes list`.  You should get a `BadCapGrant` error
+  - Copy the `client_agent` from the connection status output and use it to "Grant Permission" on
+    the devhub settings page.
+  - Check the connection status again and the status should say `CONNECTED`
 
 Now you can explore the CLI tool using `--help`
 

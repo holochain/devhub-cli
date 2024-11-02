@@ -478,7 +478,7 @@ export class Project {
 
         // Set lockfile network
         if ( this.lock.networks.zomehub === undefined )
-            this.lock.networks.zomehub  = this.app_client.getRoleDnaHash( "zomehub" );
+            this.lock.networks.zomehub  = String(this.app_client.getRoleDnaHash( "zomehub" ));
     }
 
     createZomehubClient () {

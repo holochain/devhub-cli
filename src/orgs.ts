@@ -44,26 +44,101 @@ const init : SubprogramInitFunction = async function (
 
     const list_subprogram               = subprogram
 	.command("list")
-	.description("List my orgs")
+	.description("List orgs")
+        .option("--me", "List only my groups", false )
+        .option("-l, --limit <number>", "Full org info limit", parseInt, 20 )
+        .argument("[search]", "Filter packages by search phrase")
 	.action(
 	    action_context(async function ({
 		log,
                 project,
-	    }) {
+	    }, search ) {
 		const opts		= this.opts();
 		const root_opts	        = program.opts();
 
-                const orgs              = await project.zomehub_client.get_my_orgs();
+		const org_map           = {} as Record<string, any>;
+		let search_list	        = [] as any[];
 
-                if ( root_opts.data === true ) {
-                    return orgs.map( org => {
-                        org.group       = org.group.toJSON(true);
-                        return org;
+                // Create package list from source
+                if ( opts.me === true ) {
+                    const orgs          = await project.zomehub_client.get_my_orgs();
+
+		    for ( let org of orgs ) {
+		        search_list.push({
+                            "name":     org.name,
+                            "index":    org.name.toLowerCase(),
+                        });
+                        org_map[org.name]  = org;
+		    }
+                }
+                else {
+		    const links	        = await project.zomehub_client.get_all_org_group_links();
+
+		    for ( let link of links ) {
+                        const name      = link.tagString();
+		        search_list.push({
+                            "name":     name,
+                            "index":    name.toLowerCase(),
+                        });
+                        org_map[name]   = link;
+                    }
+                }
+
+                if ( search ) {
+                    search_list         = search_list.filter( ({ index }) => {
+                        return index.includes( search.toLowerCase() );
                     });
                 }
 
+                // Remove duplicates
+                const org_names         = [] as string[];
+                search_list             = search_list.filter( ({ name }) => {
+                    if (  org_names.includes( name ) )
+                        return false;
+
+                    org_names.push( name );
+
+                    return true;
+                });
+
+                // Avoid fetching all org's info if list is too long
+                if ( search_list.length > opts.limit ) {
+                    const org_list          = search_list.map( ({ name }) => {
+                        const org_info      = org_map[ name ];
+
+                        return org_info;
+                    });
+
+                    if ( root_opts.data === true )
+                        return org_list;
+
+                    // Org list could still be just a link at this point
+                    return org_list.map( org_info => {
+                        const name          = org_info.name || org_info.tagString();
+                        return chalk.white(`@${name}`);
+                    }).join("\n\n");
+                }
+
+                // Fetch remaining zome orgs
+                const orgs                  = [] as any[];
+
+                for ( let { name, index } of search_list ) {
+                    const org_info          = org_map[ name ];
+
+                    if ( org_info.target )
+                        orgs.push({
+                            name,
+                            "group": await project.coop_content_client.get_group( org_info.target ),
+                        });
+                    else
+                        orgs.push( org_info );
+                }
+
+                if ( root_opts.data === true )
+                    return orgs;
+
                 return orgs.map( org => {
-                    const group         = org.group;
+                    const group             = org.group;
                     return [
                         chalk.white(`@${org.name} `) + chalk.gray(`(${group.$id})`),
                         chalk.cyan(`  Admins:`),
