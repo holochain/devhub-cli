@@ -144,7 +144,6 @@ export default function ({ program, action_context, auto_help }) {
             "zome_type":    zome_config.zome_type,
             "maintainer":   maintainer,
             "tags":         zome_config.tags,
-            "metadata":     zome_config.metadata,
         };
         let zome_package_id;
 
@@ -228,6 +227,9 @@ export default function ({ program, action_context, auto_help }) {
             "version":          zome_config.version,
             "for_package":      zome_package_id,
             "zome_entry":       zome_wasm_addr,
+            "readme":           zome_config.readme
+                ? utils.encodeText( await utils.readTextFile( zome_config.readme ) )
+                : null,
             "api_compatibility": {
                 "build_with": {
                     hdi_version,
@@ -235,6 +237,7 @@ export default function ({ program, action_context, auto_help }) {
                 },
                 "tested_with":  holochain_version,
             },
+            "metadata":         zome_config.metadata,
         };
 
         if ( opts.dryRun !== false ) {
@@ -344,7 +347,6 @@ export default function ({ program, action_context, auto_help }) {
             "title":        zome_config.title,
             "description":  zome_config.description,
             "tags":         zome_config.tags,
-            "metadata":     zome_config.metadata,
         };
 
         print("Current Zome Package: %s", json.debug(existing_package.toJSON(true)) );
@@ -418,17 +420,31 @@ export default function ({ program, action_context, auto_help }) {
         if ( semver.clean( existing_version.version ) !== zome_config.version )
             throw new Error(`Zome config '${zome_config.rel_filepath}' version (v${zome_config.version}) does not match the existing zome package version (v${semver.clean(existing_version.version)})`);
 
+        await existing_version.$fetchReadme();
+
+        // Trim new/old README to ensure more than whitespace has changed
+        if ( existing_version.readme )
+            existing_version.readme     = existing_version.readme.trim();
+
         const zome_version_input        = {
-            // "changelog":                zome_config.changelog || null,
+            "readme":                   zome_config.readme
+                ? (await utils.readTextFile( zome_config.readme )).trim()
+                : null,
             "source_code_revision_uri": zome_config.source_code_revision_uri || null,
+            "metadata":                 zome_config.metadata,
         };
 
         print("Current Zome Package Version: %s", json.debug(existing_version.toJSON(true)) );
         print("Current Zome config: %s", json.debug(zome_config) );
+        print("Zome version input: %s", json.debug(zome_version_input) );
 
         // Only update the package if a property has changed
         if ( utils.deepSubset( existing_version, zome_version_input ) )
             throw new Error(`No properties changed for package '${zome_config.name}'`);
+
+        // Convert README text to bytes after deep equal check
+        zome_version_input.readme       = utils.encodeText( zome_version_input.readme ) as any;
+
 
         if ( publish_opts.dryRun === false ) {
             const zome_version          = await project.zomehub_client.update_zome_package_version({

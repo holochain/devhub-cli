@@ -64,7 +64,20 @@ export class ZomeConfig {
     get version () { return semver.clean( this.config.version ); }
     get description () { return this.config.description; }
     get changelog () { return this.config.changelog || null; }
-    get readme () { return this.config.readme || null; }
+
+    get readme () {
+        if ( !this.config.readme )
+            return null;
+
+        return path.resolve(
+            path.resolve(
+	        path.dirname( this.root_filepath ),
+		path.dirname( this.rel_filepath ),
+            ),
+	    this.config.readme,
+	);
+    }
+
     get source_code_revision_uri () { return this.config.source_code_revision_uri || null; }
 
     get target () {
@@ -90,6 +103,7 @@ export class ZomeConfig {
             "title":                this.title,
             "version":              this.version,
             "description":          this.description,
+            "readme":               this.readme,
             "target":               this.target,
             "zome_type":            this.zome_type,
             "maintainer":           this.maintainer,

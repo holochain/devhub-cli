@@ -45,6 +45,13 @@ export async function fileExists ( file_path ) {
     }
 }
 
+export async function readTextFile ( file_path ) {
+    return await fs.readFile(
+	path.resolve( file_path ),
+	"utf-8",
+    );
+}
+
 export async function readJsonFile ( file_path ) {
     return JSON.parse(
 	await fs.readFile(
@@ -60,6 +67,18 @@ export async function writeJsonFile ( file_path, data ) {
 	JSON.stringify( data, null, 4 ) + "\n",
 	"utf8",
     );
+}
+
+
+const encoder                           = new TextEncoder();
+const decoder                           = new TextDecoder();
+
+export function encodeText ( text ) {
+    return encoder.encode( text );
+}
+
+export function decodeText ( bytes ) {
+    return decoder.decode( bytes );
 }
 
 
@@ -189,8 +208,12 @@ export default {
     buildList,
 
     fileExists,
+    readTextFile,
     readJsonFile,
     writeJsonFile,
+
+    encodeText,
+    decodeText,
 
     validate_port,
     validate_token,

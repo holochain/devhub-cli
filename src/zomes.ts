@@ -222,10 +222,18 @@ const init : SubprogramInitFunction = async function (
                     if ( !zome_version )
                         throw new Error(`Zome package '${package_name}' does not have version v${package_version}`);
 
+                    await zome_version.$fetchReadme();
+
                     if ( root_opts.data === true )
                         return zome_version;
 
-                    return `${chalk.white("v" + zome_version.version)}` + chalk.gray(` (Holochain v${zome_version.api_compatibility?.tested_with})`);
+                    return [
+                        `${chalk.white("v" + zome_version.version)}` + chalk.gray(` (Holochain v${zome_version.api_compatibility?.tested_with})`),
+                        ``,
+                        zome_version.readme
+                            ? chalk.magenta(`README\n\n`) + chalk.yellow(zome_version.readme.trim())
+                            : `No README`,
+                    ].join("\n");
                 }
 
                 if ( root_opts.data === true ) {
