@@ -40,6 +40,29 @@ devhub connection status
 devhub install <package>
 ```
 
+### Publish a Zome
+
+```
+devhub zome init path/to/crate/dir
+```
+
+After answering the prompt questions, a `zome.json` file is created in the location provided.
+
+Check local configurations using...
+```
+devhub status
+```
+
+Preview what would be published for the newly defined zome.
+```
+devhub publish --dry-run zome crate_name
+```
+
+If it looks good, complete the publishing by removing the `--dry-run` flag.
+```
+devhub publish zome crate_name
+```
+
 
 # API Docs
 
