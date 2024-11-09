@@ -62,7 +62,7 @@ install.
 ##### Install DevHub
 
 Download `devhub.happ` from
-https://github.com/holochain/devhub-dnas/releases/tag/zomehub-zomelets-v0.2.0-dev.2
+https://github.com/holochain/devhub-dnas/releases/tag/zomehub-zomelets-v0.2.0-dev.3
 
 - Open Launcher
 - Complete setup

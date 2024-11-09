@@ -1,6 +1,6 @@
 {
   "name": "@holochain/devhub-cli",
-  "version": "0.2.0-dev.1",
+  "version": "0.2.0-dev.2",
   "description": "A CLI for managing assets and packages on DevHub",
   "type": "module",
   "main": "lib/index.js",
@@ -29,7 +29,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@holochain/zomehub-zomelets": "file:../devhub-dnas-feature-cli-support/dnas/zomehub/zomelets",
+    "@holochain/zomehub-zomelets": "^0.2.0-dev.3",
     "@noble/ed25519": "^2.1.0",
     "@spartan-hc/app-interface-client": "^0.8.0",
     "@spartan-hc/bundles": "^0.2.6",
