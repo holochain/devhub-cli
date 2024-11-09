@@ -45,11 +45,12 @@ const init : SubprogramInitFunction = async function (
     subprogram
         .command("init")
         .description("Create zome config")
-        .option(`-w, --target-path <path>`, `path to the zome target (default: "")` )
+        .option(`-w, --wasm-path <path>`, `path to the zome WASM file (default: "")` )
         .addOption(
             new Option(`-T, --zome-type <type>`, `zome type (default: "integrity")`)
                 .choices( ZOME_TYPES )
         )
+        .option(`-c, --crate-name <string>`, `rust crate name` )
         .option(`-i, --package-name <string>`, `zome package name (default: "")` )
         .option(`-n, --package-title <string>`, `zome package title (default: "")` )
         .option(`-d, --package-description <string>`, `zome package description (default: "")` )
@@ -105,7 +106,10 @@ const init : SubprogramInitFunction = async function (
                     "version":          opts.packageVersion ?? (
                         opts.yes ? "0.1.0" : undefined
                     ),
-                    "target":           opts.targetPath ?? (
+                    "target":           opts.cargoName ?? (
+                        opts.yes ? cargo_settings.package.name : undefined
+                    ),
+                    "wasm":             opts.targetPath ?? (
                         opts.yes ? "" : undefined
                     ),
                     "name":             opts.packageName ?? (
@@ -140,7 +144,12 @@ const init : SubprogramInitFunction = async function (
                     },
                     {
                         "name":         "target",
-                        "message":      "Zome package target file path?",
+                        "message":      "Cargo package name?",
+                        "default":      cargo_settings.package?.name || "",
+                    },
+                    {
+                        "name":         "wasm",
+                        "message":      "Zome package WASM file path?",
                         "default":      "",
                     },
                     {
@@ -178,21 +187,24 @@ const init : SubprogramInitFunction = async function (
 
                 Object.assign( config, answers );
 
-                config.target           = path.relative(
+                config.wasm             = path.relative(
                     path.dirname(output_abs_path),
                     path.resolve(
                         project.cwd,
-                        config.target,
+                        config.wasm,
                     ),
                 );
+
+                // Target ID is only used in the `devhub.json` config so we want to remove it from
+                // the `zome.json`
+                const target_id         = config.target;
+                delete config.target;
 
                 log.normal("Writing new zome config to %s", output_abs_path );
                 await writeJsonFile(
                     output_abs_path,
                     config,
                 );
-
-                const target_id         = config.name;
 
                 await project.addZome( target_id, output_abs_path );
 

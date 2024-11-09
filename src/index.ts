@@ -146,10 +146,9 @@ export async function main ( argv ) {
 	.option("-q, --quiet", "suppress all printing except for final result", false )
 	.option("--cwd <path>", "path to project dir", CWD_DIR )
 	.option("--user-homedir <path>", "path to project dir")
-        // TODO: make a global option to use a data output format.  When present, command failures
-        // should throw an error instead of just printing a red message.  It could also default to
-        // true when main is called programatically.
-        //
+        // A global option to use a data output format.  When present, command failures should throw
+        // an error instead of just printing a red message.  It could also default to true when main
+        // is called programatically.
         .option("-d, --data", "Display in a data format", false )
 	.addOption(
 	    (new Option(

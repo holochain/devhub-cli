@@ -275,6 +275,12 @@ export default function ({ program, action_context, auto_help }) {
                 const target_config     = project.getTargetConfig( target_type, target_id );
 
                 if ( target_type === "zome" ) {
+                    // Check if target ID is a cargo package
+                    const crate_info    = await utils.crateInfo( project.cwd, target_id );
+
+                    if ( !crate_info )
+                        throw new Error(`Cannot find a matching cargo package for target ID '${target_id}'`);
+
                     return await publish_zome( log, project, opts, target_id, target_config );
                     // Example NPM output
                     // ```
@@ -471,7 +477,6 @@ export default function ({ program, action_context, auto_help }) {
                 .choices( TARGET_TYPES )
         )
         .argument("<id>", "Target ID")
-        // .argument("<version>", "Package version to be updated")
         .action(
             action_context(async function ({
                 log,

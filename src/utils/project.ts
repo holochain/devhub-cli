@@ -155,7 +155,6 @@ export class Project {
             this.configFilepath,
             {
                 "version": "1",
-                // TODO: fields for project info
                 "zomes":    {},
                 // "dnas":     {},
                 // "happs":    {},
@@ -193,7 +192,13 @@ export class Project {
 
         await Promise.all([
             ...Object.entries(config.zomes).map( async ([zid, filepath]) => {
-	        config.zomes[ zid ] = await ZomeConfig.create( filepath, this.configFilepath );
+                try {
+	            config.zomes[ zid ] = await ZomeConfig.create( filepath, this.configFilepath );
+                } catch (err) {
+                    if ( err.code === "ENOENT" )
+                        throw new Error(`Cannot find config for zome target '${zid}'; ${err.message}`);
+                    throw err;
+                }
             }),
         ]);
 
@@ -277,7 +282,7 @@ export class Project {
         return await fs.readFile(
             path.resolve(
                 path.dirname( this.configFilepath ),
-                zome_config.target
+                zome_config.wasm
             )
         );
     }
@@ -299,9 +304,9 @@ export class Project {
                     this.cwd,
                     zome_config.source,
                 );
-                zome_config.target      = path.relative(
+                zome_config.wasm        = path.relative(
                     this.cwd,
-                    zome_config.target,
+                    zome_config.wasm,
                 );
             }
         }

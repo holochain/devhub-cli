@@ -144,6 +144,20 @@ export function snakeToWords( str ) {
 }
 
 
+export async function deriveCargoVersion ( cwd, required: boolean = true ) {
+    const result                        = await execa(`cargo --version`, {
+        "cwd":      cwd,
+        "shell":    true,
+    });
+
+    const version                       = result.stdout.match(/cargo (\d+\.\d+\.\d+)/)?.[1];
+
+    if ( !version && required === true )
+        throw new Error(`Could not determine 'cargo' version; ${result.stdout}`);
+
+    return version || null;
+}
+
 export async function deriveHdiVersionForCrate ( cwd, crate_name, required: boolean = true ) {
     const hdi_line                      = await execa(`cargo tree -p ${crate_name} | grep " hdi " | head -n 1`, {
         "cwd":      cwd,
@@ -187,6 +201,22 @@ export async function deriveHolochainVersionForCrate ( cwd, required: boolean = 
     return holochain_version || null;
 }
 
+export async function crateInfo ( cwd, crate_name ) {
+    // Check if cargo is there
+    await deriveCargoVersion( cwd );
+
+    const result                        = await execa(`cargo metadata --format-version 1 2> /dev/null`, {
+        "cwd":      cwd,
+        "shell":    true,
+    });
+    const packages                      = JSON.parse( result.stdout ).packages;
+
+    if ( !packages )
+        return null;
+
+    return packages.find( crate_info => crate_info.name === crate_name );
+}
+
 
 export function deepSubset( obj1, obj2 ) {
     for ( let key in obj2 ) {
@@ -224,9 +254,11 @@ export default {
 
     snakeToWords,
 
+    deriveCargoVersion,
     deriveHdiVersionForCrate,
     deriveHdkVersionForCrate,
     deriveHolochainVersionForCrate,
+    crateInfo,
 
     deepEqual,
     deepSubset,

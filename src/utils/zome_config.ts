@@ -57,6 +57,7 @@ export class ZomeConfig {
 
     async loadFile () {
         this.#config                = await common.readJsonFile( this.filepath );
+        // TODO: validate config contents
     }
 
     get name () { return this.config.name; }
@@ -80,13 +81,13 @@ export class ZomeConfig {
 
     get source_code_revision_uri () { return this.config.source_code_revision_uri || null; }
 
-    get target () {
+    get wasm () {
         return path.resolve(
             path.resolve(
 	        path.dirname( this.root_filepath ),
 		path.dirname( this.rel_filepath ),
             ),
-	    this.config.target,
+	    this.config.wasm,
 	);
     }
 
@@ -104,7 +105,7 @@ export class ZomeConfig {
             "version":              this.version,
             "description":          this.description,
             "readme":               this.readme,
-            "target":               this.target,
+            "wasm":                 this.wasm,
             "zome_type":            this.zome_type,
             "maintainer":           this.maintainer,
             "tags":                 this.tags,

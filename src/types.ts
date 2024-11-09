@@ -32,7 +32,7 @@ export type ZomeTarget = {
     zome_package_version_id    ?: string | ActionHash | null;
     type			: string;
     version			: string;
-    target			: string;
+    wasm			: string;
     name			: string;
     title			: string;
     description			: string;
