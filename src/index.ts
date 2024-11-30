@@ -187,7 +187,9 @@ export async function main ( argv ) {
 	    }
 
 	    // Is there a project config?  Most commands won't work if it hasn't been initiated
-            project                     = await Project.create( opts.cwd );
+            project                     = await Project.create( opts.cwd, {
+                "user_homedir": opts.userHomedir,
+            });
 	    log.trace("Devhub settings: %s", json.debug({
                 "connection":   project.connection,
                 "config":       project.config,
@@ -377,6 +379,7 @@ export async function main ( argv ) {
 	.description("Set devhub connection settings")
 	.argument("<port>", "Conductor app port", parseInt )
 	.argument("<token>", "Devhub auth token (hex or base64)")
+	.option("--cap-secret <secret>", "Capability secret")
 	.option("-f, --force", "Create config even if the file already exists", false )
 	.action(
 	    action_context(async function ({
@@ -413,6 +416,9 @@ export async function main ( argv ) {
                 const connection        = {
                     app_port,
                     app_token,
+                    "cap_secret":       opts.capSecret === "null"
+                        ? null
+                        : opts.capSecret,
                 };
 
                 await project.setConnection( connection, {

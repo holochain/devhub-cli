@@ -19,6 +19,7 @@ export type Option<T> = T | null;
 export type ConnectionContext = {
     app_port		: number;
     app_token		: Uint8Array;
+    cap_secret	       ?: Uint8Array;
 };
 
 export type DevhubConfig = {

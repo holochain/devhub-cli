@@ -53,7 +53,7 @@ const init : SubprogramInitFunction = async function (
         .option(`-c, --crate-name <string>`, `rust crate name` )
         .option(`-i, --package-name <string>`, `zome package name (default: "")` )
         .option(`-n, --package-title <string>`, `zome package title (default: "")` )
-        .option(`-d, --package-description <string>`, `zome package description (default: "")` )
+        .option(`--package-description <string>`, `zome package description (default: "")` )
         .option(`-x, --package-version <string>`, `zome package version (default: "0.1.0")` )
         .option(`-m, --package-maintainer <hash>`, `zome package maintainer (default: "null")` )
         .option(`-l, --package-tags <string>`, `zome package tag (default: "[]")`, buildList )
@@ -106,10 +106,10 @@ const init : SubprogramInitFunction = async function (
                     "version":          opts.packageVersion ?? (
                         opts.yes ? "0.1.0" : undefined
                     ),
-                    "target":           opts.cargoName ?? (
+                    "target":           opts.crateName ?? (
                         opts.yes ? cargo_settings.package.name : undefined
                     ),
-                    "wasm":             opts.targetPath ?? (
+                    "wasm":             opts.wasmPath ?? (
                         opts.yes ? "" : undefined
                     ),
                     "name":             opts.packageName ?? (

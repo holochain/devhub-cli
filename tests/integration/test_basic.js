@@ -29,6 +29,7 @@ const __dirname				= path.dirname( new URL(import.meta.url).pathname );
 // const DNAHUB_DNA_PATH			= path.join( __dirname, "../dnas/dnahub.dna" );
 const ZOMEHUB_DNA_PATH			= path.join( __dirname, "../dnas/zomehub.dna" );
 
+let admin;
 let installations;
 let app_port;
 let client;
@@ -64,6 +65,7 @@ describe("DevHub CLI - integration", function () {
 
 	app_port			= await holochain.ensureAppPort();
 	alice_token_hex			= hex( installations.alice.test.auth.token );
+        admin                           = holochain.admin;
     });
 
     linearSuite("Basic", basic_tests );
@@ -88,50 +90,58 @@ function basic_tests () {
     it("should execute MVP publish/install cycle", async function () {
         this.timeout( 10_000 );
 
-	await main(
-	    cmd(`--cwd ${TMPDIR} init`)
+	const set_conn                  = await main(
+	    cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d connection set --cap-secret null ${app_port} ${alice_token_hex}`)
 	);
 
 	await main(
+	    cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d init`)
+	);
+
+	const zome_config               = await main(
 	    cmd([
 		`--cwd`, TMPDIR,
-                `zomes`, `init`, `-y`,
+		`--user-homedir`, TMPDIR,
+                `-d`,
+                `zomes`, `init`,
 		`-w`, `mere_memory.wasm`,
 		`-T`, `integrity`,
+		`-c`, `mere_memory`,
 		`-i`, `mere_memory`,
-		`-x`, `0.1.0`,
 		`-n`, `Mere Memory`,
-		`-d`, `Integrity rules for simple byte storage`,
+		`--package-description`, `Integrity rules for simple byte storage`,
+		`-x`, `0.1.0`,
+                `-y`,
 	    ])
 	);
+        log.normal("Zome config for 'mere_memory': %s", json.debug(zome_config) );
 
         {
-	    const status                = await main(
-	        cmd(`--cwd ${TMPDIR} status -d`)
+	    const conn_info             = await main(
+	        cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d connection status`)
 	    );
-            log.normal("Status: %s", json.debug(status) );
+            log.normal("Connection: %s", json.debug(conn_info) );
         }
 
-        // TODO: ensure that connection information is only used in the tmpdir location
-	await main(
-	    cmd(`--cwd ${TMPDIR} connection set ${app_port} ${alice_token_hex}`)
-	);
-
         {
 	    const status                = await main(
-	        cmd(`--cwd ${TMPDIR} status -d`)
+	        cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d status`)
 	    );
             log.normal("Status: %s", json.debug(status) );
+
+            expect( status.whoami.pubkey    ).to.not.be.undefined;
         }
 
         {
 	    const published             = await main(
 	        cmd([
 		    `--cwd`, TMPDIR,
+                    `--user-homedir`, TMPDIR,
                     `publish`,
                     `--holochain-version`, `0.4.0-dev.20`,
                     `--hdi-version`, `0.5.0-dev.12`,
                     `--hdk-version`, `0.4.0-dev.14`,
+                    `-f`,
                     `zome`, `mere_memory`,
                 ])
 	    );
@@ -140,7 +150,7 @@ function basic_tests () {
 
         {
 	    const zome                  = await main(
-	        cmd(`--cwd ${TMPDIR} install mere_memory`)
+	        cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d install mere_memory`)
 	    );
             log.normal("Zome: %s", json.debug(zome) );
         }
@@ -150,7 +160,7 @@ function basic_tests () {
 
     it("should list zomes", async function () {
 	const zomes			= await main(
-	    cmd(`--cwd ${TMPDIR} zomes list`)
+	    cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d zomes list`)
 	);
 	log.normal("%s", json.debug(zomes) );
 
@@ -159,7 +169,7 @@ function basic_tests () {
 
     it("should list zome versions", async function () {
 	const versions			= await main(
-	    cmd(`--cwd ${TMPDIR} zomes versions list mere_memory`)
+	    cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d zomes versions list mere_memory`)
 	);
 	log.normal("%s", json.debug(versions) );
 
@@ -168,7 +178,7 @@ function basic_tests () {
 
     it("should list wasms", async function () {
 	const wasms			= await main(
-	    cmd(`--cwd ${TMPDIR} zomes wasms list`)
+	    cmd(`--cwd ${TMPDIR} --user-homedir ${TMPDIR} -d zomes wasms list`)
 	);
 	log.normal("%s", json.debug(wasms) );
 

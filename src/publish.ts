@@ -255,15 +255,16 @@ export default function ({ program, action_context, auto_help }) {
     const subprogram                    = program
         .command("publish")
         .description("Publish a target")
+        .option("--hdi-version <string>", "Specifically set the HDI version for API compatibitlity settings", null )
+        .option("--hdk-version <string>", "Specifically set the HDK version for API compatibitlity settings", null )
+        .option("--holochain-version <string>", "Specifically set the Holochain version for API compatibitlity settings", null )
+        .option("--dry-run", "Create package without publishing", false )
+        .option(`-f, --force`, `Skip crate check` )
         .addArgument(
             new Argument("<type>", "Target type")
                 .choices( TARGET_TYPES )
         )
         .argument("<id>", "Target ID")
-        .option("--hdi-version <string>", "Specifically set the HDI version for API compatibitlity settings", null )
-        .option("--hdk-version <string>", "Specifically set the HDK version for API compatibitlity settings", null )
-        .option("--holochain-version <string>", "Specifically set the Holochain version for API compatibitlity settings", null )
-        .option("--dry-run", "Create package without publishing", false )
         .action(
             action_context(async function ({
                 log,
@@ -276,10 +277,12 @@ export default function ({ program, action_context, auto_help }) {
 
                 if ( target_type === "zome" ) {
                     // Check if target ID is a cargo package
-                    const crate_info    = await utils.crateInfo( project.cwd, target_id );
+                    if ( opts.force !== true ) {
+                        const crate_info    = await utils.crateInfo( project.cwd, target_id );
 
-                    if ( !crate_info )
-                        throw new Error(`Cannot find a matching cargo package for target ID '${target_id}'`);
+                        if ( !crate_info )
+                            throw new Error(`Cannot find a matching cargo package for target ID '${target_id}'`);
+                    }
 
                     return await publish_zome( log, project, opts, target_id, target_config );
                     // Example NPM output

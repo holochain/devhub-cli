@@ -163,7 +163,6 @@ export async function deriveHdiVersionForCrate ( cwd, crate_name, required: bool
         "cwd":      cwd,
         "shell":    true,
     });
-    // log.debug("Cargo tree result for 'hdi': %s", hdi_line.stdout );
     const cargo_hdi                     = hdi_line.stdout.match(/hdi v(.*)/)?.[1];
 
     if ( !cargo_hdi && required === true )
@@ -177,7 +176,6 @@ export async function deriveHdkVersionForCrate ( cwd, crate_name, required: bool
         "cwd":      cwd,
         "shell":    true,
     });
-    // log.debug("Cargo tree result for 'hdk': %s", hdk_line.stdout );
     const cargo_hdk                     = hdk_line.stdout.match(/hdk v(.*)/)?.[1];
 
     if ( !cargo_hdk && required === true )
@@ -191,7 +189,6 @@ export async function deriveHolochainVersionForCrate ( cwd, required: boolean = 
         "cwd":      cwd, // Maybe this shouldn't be here?
         "shell":    true,
     });
-    // log.debug("Holochain version: %s", holochain_line.stdout );
 
     const holochain_version             = holochain_line.stdout.split(" ")[1];
 

@@ -395,11 +395,15 @@ export class Project {
     get mere_memory_client () { return this.#mere_memory_client };
     get coop_content_client () { return this.#coop_content_client };
 
-    async setConnection ({ app_port, app_token }, opts : any = {} ) {
-        const connection            = {
+    async setConnection ({ app_port, app_token, cap_secret }, opts : any = {} ) {
+        const connection : any      = {
             app_port,
             app_token,
         };
+
+        if ( cap_secret !== undefined )
+            connection.cap_secret   = cap_secret;
+
         const filepath              = opts.global
             ? this.globalConnectionFilepath
             : this.connectionFilepath;
@@ -452,6 +456,8 @@ export class Project {
     createClient () {
         if ( !this.connection )
             throw new Error("No connection settings");
+
+        log.info("Using app port: %s", this.connection?.app_port );
 	this.#client                = new AppInterfaceClient( this.connection?.app_port, {
 	    "logging":	"fatal",
 	    "conn_options": {
@@ -467,13 +473,26 @@ export class Project {
         if ( !this.client )
             throw new Error("Client has not been created yet");
 
+        log.info("Using app token: %s", this.connection?.app_token );
         const token                 = common.parseHex( this.connection?.app_token );
+        let cap_secret;
+
+        if ( this.connection?.cap_secret !== undefined ) {
+            if ( typeof this.connection?.cap_secret === "string" )
+                cap_secret          = common.parseHex( this.connection?.cap_secret );
+            else
+                cap_secret          = this.connection?.cap_secret;
+        }
+        else
+            cap_secret              = new Uint8Array(64);
 
         try {
 	    this.#app_client        = await this.client.app( token );
+
             if ( !this.client_secret )
                 throw new Error(`Missing client secret`);
-            await this.app_client.agent.setCapabilityAgent( this.client_secret, new Uint8Array(64) );
+
+            await this.app_client.agent.setCapabilityAgent( this.client_secret, cap_secret );
         } catch (err) {
             if ( err.message.includes(`Connection has been flushed`) )
                 throw new Error(`The connection was flushed by the server; this may be caused by an expired auth token`);

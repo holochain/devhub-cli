@@ -83,12 +83,9 @@ test-unit-no-holochain:		lib/index.js Makefile
 
 test-integration:
 	make -s test-integration-basic
-	make -s test-integration-zome-project
 
 test-integration-basic:		lib/index.js Makefile $(TEST_DNAS)
 	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_basic.js
-test-integration-zome-project:	lib/index.js Makefile $(TEST_DNAS)
-	$(TEST_ENV_VARS) npx mocha $(MOCHA_OPTS) ./tests/integration/test_zome_project.js
 
 
 #
