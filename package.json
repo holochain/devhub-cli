@@ -1,6 +1,6 @@
 {
   "name": "@holochain/devhub-cli",
-  "version": "0.2.0-dev.2",
+  "version": "0.2.0",
   "description": "A CLI for managing assets and packages on DevHub",
   "type": "module",
   "main": "lib/index.js",
