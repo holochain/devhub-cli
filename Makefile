@@ -11,6 +11,7 @@ lib/index.js:		src/*.ts src/*/*.ts Makefile node_modules
 		--outDir lib -d --sourceMap src/index.ts
 	chmod a+x $@
 
+build:			lib/index.js
 build-watch:
 	@inotifywait -r -m -e modify		\
 		--includei '.*\.ts'		\
@@ -60,9 +61,6 @@ npm-use-bundles-%:
 # Testing
 #
 TEST_DNAS		= tests/dnas/zomehub.dna
-
-tests/dnas/zomehub.dna:		../devhub-dnas-feature-cli-support/dnas/zomehub.dna
-	cp $< $@
 
 DEBUG_LEVEL	       ?= warn
 TEST_ENV_VARS		= LOG_LEVEL=$(DEBUG_LEVEL)
